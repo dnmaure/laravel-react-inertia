@@ -1,0 +1,70 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\{{entity}};
+use Illuminate\Http\Request;
+use Inertia\Inertia;
+
+class {{entity}}Controller extends Controller
+{
+    public function index()
+    {
+        ${{entityPlural}} = {{entity}}::latest()->paginate(10);
+        
+        return Inertia::render('{{entityPlural}}/Index', [
+            '{{entityPlural}}' => ${{entityPlural}},
+        ]);
+    }
+
+    public function create()
+    {
+        return Inertia::render('{{entityPlural}}/Create');
+    }
+
+    public function store(Request $request)
+    {
+        $request->validate([
+            {{fieldsValidation}},
+        ]);
+
+        {{entity}}::create($request->all());
+
+        return redirect()->route('{{entityPlural}}.index')
+            ->with('success', '{{entity}} created successfully.');
+    }
+
+    public function show({{entity}} ${{entityLower}})
+    {
+        return Inertia::render('{{entityPlural}}/Show', [
+            '{{entityLower}}' => ${{entityLower}},
+        ]);
+    }
+
+    public function edit({{entity}} ${{entityLower}})
+    {
+        return Inertia::render('{{entityPlural}}/Edit', [
+            '{{entityLower}}' => ${{entityLower}},
+        ]);
+    }
+
+    public function update(Request $request, {{entity}} ${{entityLower}})
+    {
+        $request->validate([
+            {{fieldsValidation}},
+        ]);
+
+        ${{entityLower}}->update($request->all());
+
+        return redirect()->route('{{entityPlural}}.index')
+            ->with('success', '{{entity}} updated successfully.');
+    }
+
+    public function destroy({{entity}} ${{entityLower}})
+    {
+        ${{entityLower}}->delete();
+
+        return redirect()->route('{{entityPlural}}.index')
+            ->with('success', '{{entity}} deleted successfully.');
+    }
+}
