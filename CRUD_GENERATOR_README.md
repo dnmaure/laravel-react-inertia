@@ -1,250 +1,252 @@
-# Laravel React CRUD Generator
+# Enhanced CRUD Generator for Laravel React with Inertia
 
-This artisan command generates complete CRUD (Create, Read, Update, Delete) operations for Laravel React applications using Inertia.js.
+This enhanced CRUD generator creates complete CRUD scaffolding for Laravel React applications with Inertia.js, including support for file uploads, long text fields, and various data types.
 
 ## Features
 
-- ✅ **Model Generation**: Creates Eloquent models with proper fillable fields
-- ✅ **Migration Generation**: Creates database migrations with proper field types
-- ✅ **Controller Generation**: Creates resource controllers with validation
-- ✅ **React Components**: Generates Index, Create, Edit, and Show components
-- ✅ **Route Registration**: Automatically adds resource routes to `routes/web.php`
-- ✅ **Navigation Updates**: Adds navigation links to `AuthenticatedLayout.jsx`
-- ✅ **Field Type Support**: Supports various field types (string, integer, decimal, boolean, date, text, email)
-- ✅ **Validation**: Generates proper Laravel validation rules
-- ✅ **Form Handling**: Creates forms with proper Inertia.js integration
+- **Model Generation** - Creates Eloquent models with proper fillable fields
+- **Migration Generation** - Creates database migrations with appropriate field types
+- **Controller Generation** - Creates controllers with validation and file upload handling
+- **React Components** - Generates Index, Create, Edit, and Show components
+- **Route Generation** - Automatically adds resource routes
+- **Navigation Updates** - Updates the authenticated layout navigation
+- **File Upload Support** - Handles file uploads with proper storage
+- **Multiple Field Types** - Supports string, integer, decimal, boolean, date, text, longtext, email, file, and url
+
+## Available Field Types
+
+| Type | Description | Database Column | Validation |
+|------|-------------|----------------|------------|
+| `string` | Short text (max 255 chars) | `VARCHAR(255)` | string, max:255 |
+| `integer` | Whole numbers | `INTEGER` | integer, min:0 |
+| `decimal` | Decimal numbers | `DECIMAL(10,2)` | numeric, min:0 |
+| `boolean` | True/false values | `BOOLEAN` | boolean |
+| `date` | Date values | `DATE` | date |
+| `text` | Medium text | `TEXT` | string |
+| `longtext` | Long text content | `LONGTEXT` | string |
+| `email` | Email addresses | `VARCHAR(255)` | email |
+| `file` | File uploads | `VARCHAR(255)` | file, mimes:jpeg,png,jpg,gif,pdf,doc,docx,mp4,mov,avi, max:10240 |
+| `url` | URL links | `VARCHAR(255)` | url |
 
 ## Usage
 
 ### Basic Usage
 
 ```bash
-# Generate CRUD with interactive field definition
-php artisan create:crud Product
-
-# Generate CRUD with predefined fields
-php artisan create:crud Product --fields="name:string,price:decimal,stock:integer"
+php artisan create:crud EntityName --fields="field1:type,field2:type|required"
 ```
 
-### Field Types Supported
+### Simple File Upload Example
 
-- `string` - VARCHAR(255) field
-- `integer` - INTEGER field
-- `decimal` - DECIMAL(10,2) field
-- `boolean` - BOOLEAN field with default false
-- `date` - DATE field
-- `text` - TEXT field (nullable)
-- `email` - VARCHAR field with email validation
-
-### Field Options
-
-- Add `|required` to make a field required: `name:string|required`
-- Fields are nullable by default unless specified as required
-
-## Examples
-
-### Example 1: Simple Product CRUD
+For a Document entity with file uploads:
 
 ```bash
-php artisan create:crud Product --fields="name:string|required,price:decimal|required,stock:integer"
+php artisan create:crud Document --fields="title:string|required,description:text,file:file|required,category:string"
 ```
 
-This creates:
-- Model: `app/Models/Product.php`
-- Migration: `database/migrations/xxxx_create_products_table.php`
-- Controller: `app/Http/Controllers/ProductController.php`
-- React Components: `resources/js/Pages/Products/Index.jsx`, `Create.jsx`, `Edit.jsx`, `Show.jsx`
-- Routes: `Route::resource('products', ProductController::class);`
-- Navigation: Adds "Products" link to navigation
+### Course Entity Example
 
-### Example 2: Category CRUD
+For a Course entity with long descriptions, PDF files, and videos:
 
 ```bash
-php artisan create:crud Category --fields="name:string|required,description:text"
+php artisan create:crud Course --fields="title:string|required,slug:string|required,short_description:text|required,long_description:longtext|required,duration:integer|required,price:decimal|required,status:string|required,thumbnail_image:file,pdf_materials:file,video_url:url,video_file:file,difficulty_level:string|required,category_id:integer|required,instructor_id:integer|required,is_featured:boolean,published_at:date"
 ```
 
-### Example 3: User Profile CRUD
+### Interactive Mode
+
+If you don't provide the `--fields` option, the generator will ask you interactively:
 
 ```bash
-php artisan create:crud Profile --fields="first_name:string|required,last_name:string|required,email:email|required,birth_date:date,is_active:boolean"
+php artisan create:crud Course
 ```
 
-## Generated Files Structure
+## Course Entity Field Breakdown
 
-```
-app/
-├── Models/
-│   └── {Entity}.php
-├── Http/Controllers/
-│   └── {Entity}Controller.php
-└── Console/Commands/
-    └── CreateCrud.php
+### Basic Information
+- `title:string|required` - Course title
+- `slug:string|required` - URL-friendly identifier
+- `short_description:text|required` - Brief course description
+- `long_description:longtext|required` - Detailed course description
+- `duration:integer|required` - Course duration in minutes
+- `price:decimal|required` - Course price
+- `status:string|required` - Course status (draft, published, archived)
 
-database/migrations/
-└── xxxx_create_{entities}_table.php
+### Media Files
+- `thumbnail_image:file` - Course thumbnail/cover image
+- `pdf_materials:file` - PDF course materials
+- `video_url:url` - Video URL (YouTube, Vimeo, etc.)
+- `video_file:file` - Uploaded video file
 
-resources/js/Pages/
-└── {Entities}/
-    ├── Index.jsx
-    ├── Create.jsx
-    ├── Edit.jsx
-    └── Show.jsx
+### Additional Metadata
+- `difficulty_level:string|required` - Beginner, Intermediate, Advanced
+- `category_id:integer|required` - Foreign key to categories table
+- `instructor_id:integer|required` - Foreign key to users table
+- `is_featured:boolean` - Featured course flag
+- `published_at:date` - Publication date
 
-routes/
-└── web.php (updated with new routes)
+## Generated Files
 
-resources/js/Layouts/
-└── AuthenticatedLayout.jsx (updated with navigation)
-```
+The generator creates the following files:
 
-## Generated Features
+### Backend (Laravel)
+- `app/Models/Course.php` - Eloquent model
+- `database/migrations/YYYY_MM_DD_HHMMSS_create_courses_table.php` - Database migration
+- `app/Http/Controllers/CourseController.php` - Controller with CRUD operations
 
-### Model
-- Proper namespace and inheritance
-- Fillable fields based on defined fields
-- Ready for relationships and additional methods
+### Frontend (React)
+- `resources/js/Pages/Courses/Index.jsx` - List all courses
+- `resources/js/Pages/Courses/Create.jsx` - Create new course form
+- `resources/js/Pages/Courses/Edit.jsx` - Edit existing course form
+- `resources/js/Pages/Courses/Show.jsx` - Display course details
 
-### Migration
-- Proper table structure
-- Field types mapped to Laravel migration methods
-- Timestamps included
-- Proper rollback method
+### Routes
+- Adds resource routes to `routes/web.php`
+- Updates navigation in `resources/js/Layouts/AuthenticatedLayout.jsx`
 
-### Controller
-- Full resource controller with all CRUD methods
-- Proper validation rules for each field
-- Inertia.js integration
-- Success messages and redirects
-- Route model binding
+## File Upload Handling
 
-### React Components
+The generator automatically handles file uploads:
 
-#### Index Component
-- Table display of all records
-- Pagination support
-- Links to Create, Show, and Edit
-- Responsive design with Tailwind CSS
+1. **Storage**: Files are stored in `storage/app/public/{entity_plural}/`
+2. **Validation**: Supports common file types (images, PDFs, documents, videos)
+3. **Size Limit**: 10MB maximum file size
+4. **Display**: Show component includes download links for uploaded files
 
-#### Create Component
-- Form with all defined fields
-- Proper input types (text, number, email, date, textarea)
-- Validation error display
-- Inertia.js form handling
+### File Upload Features
 
-#### Edit Component
-- Pre-populated form with existing data
-- Same features as Create component
-- Update method integration
-
-#### Show Component
-- Display all fields in a clean layout
-- Links to Edit and back to Index
-- Responsive grid layout
-
-## Post-Generation Steps
-
-After running the command:
-
-1. **Build Assets** (if not done automatically):
-   ```bash
-   docker-compose exec node npm run build
-   ```
-
-2. **Run Migrations** (if not done automatically):
-   ```bash
-   php artisan migrate
-   ```
-
-3. **Test the CRUD**:
-   - Access the application
-   - Login to your account
-   - Navigate to the new entity via the navigation menu
-   - Test all CRUD operations
+- **Automatic File Naming**: Files are renamed with timestamp prefix to avoid conflicts
+- **Storage Organization**: Files are stored in entity-specific folders
+- **Download Links**: Show component displays clickable links to download files
+- **Form Handling**: React forms properly handle file input changes
+- **Validation**: Server-side validation for file types and sizes
 
 ## Customization
 
-### Adding Relationships
+### Adding New Field Types
 
-After generation, you can add relationships to the model:
+To add new field types, update the following methods in `CreateCrud.php`:
 
+1. Add to `$availableFieldTypes` array
+2. Add case in `generateMigration()` method
+3. Add case in `generateController()` validation rules
+4. Add case in `getInputType()` method
+
+### Modifying Validation Rules
+
+Edit the validation rules in the `generateController()` method to customize validation for your specific needs.
+
+### Customizing React Components
+
+The generated React components use Tailwind CSS for styling. You can customize the appearance by modifying the generated component files.
+
+## Post-Generation Steps
+
+After running the generator:
+
+1. **Run Migrations**: `php artisan migrate`
+2. **Build Assets**: `docker-compose exec node npm run build`
+3. **Create Storage Link**: `php artisan storage:link` (if not already done)
+4. **Set Permissions**: Ensure storage directory is writable
+
+## Example Generated Controller Methods
+
+### Store Method with File Upload
 ```php
-// In app/Models/Product.php
-public function category()
-{
-    return $this->belongsTo(Category::class);
-}
-```
-
-### Adding Custom Validation
-
-Modify the controller to add custom validation rules:
-
-```php
-// In app/Http/Controllers/ProductController.php
 public function store(Request $request)
 {
     $request->validate([
-        'name' => 'required|string|max:255|unique:products',
-        'price' => 'required|numeric|min:0',
-        'stock' => 'required|integer|min:0',
+        'title' => 'required|string|max:255',
+        'long_description' => 'required|string',
+        'thumbnail_image' => 'nullable|file|mimes:jpeg,png,jpg,gif,pdf,doc,docx,mp4,mov,avi|max:10240',
+        // ... other validation rules
     ]);
-    // ... rest of the method
+
+    $data = $request->all();
+    
+    // Handle file uploads
+    if ($request->hasFile('thumbnail_image')) {
+        $file = $request->file('thumbnail_image');
+        $fileName = time() . '_' . $file->getClientOriginalName();
+        $file->storeAs('public/courses', $fileName);
+        $data['thumbnail_image'] = $fileName;
+    }
+
+    Course::create($data);
+
+    return redirect()->route('courses.index')
+        ->with('success', 'Course created successfully.');
 }
 ```
 
-### Styling Customization
-
-The React components use Tailwind CSS classes. You can customize the styling by modifying the className attributes in the generated components.
-
 ## Troubleshooting
 
-### Migration Errors
-If you get "table already exists" errors:
+### Common Issues
+
+1. **File Upload Not Working**: Ensure storage link is created and permissions are set
+2. **Validation Errors**: Check that all required fields are provided
+3. **Route Not Found**: Verify routes are properly added to `web.php`
+4. **Component Not Rendering**: Check that Inertia is properly configured
+
+### File Permissions
+
+Ensure your storage directory has proper write permissions:
+
 ```bash
-php artisan tinker --execute="DB::table('migrations')->insert(['migration' => 'migration_name', 'batch' => 1]);"
+chmod -R 775 storage/
+chmod -R 775 bootstrap/cache/
 ```
 
-### Build Errors
-If you get build errors:
+### Storage Link
+
+If files are not accessible, create the storage link:
+
 ```bash
-docker-compose exec node npm run build
+php artisan storage:link
 ```
 
-### JavaScript Errors
-If you get `ReferenceError: $entity is not defined`:
-- This is a template generation issue that has been fixed in the latest version
-- Rebuild assets: `docker-compose exec node npm run build`
-- If the error persists, check the generated React components for incorrect `$` symbols in JSX
+## Advanced Usage
 
-### Duplicate Controller Imports
-If you see duplicate `use App\Http\Controllers\` statements in `routes/web.php`:
-- This issue has been fixed in the latest version
-- The generator now properly checks for existing imports before adding new ones
-- Clean up any existing duplicates manually if needed
+### Custom Validation Rules
 
-### Missing Navigation Links
-If navigation links are not appearing in the navbar:
-- The generator now uses a robust line-by-line parsing approach to find the navigation section
-- It automatically detects existing NavLink elements and adds new ones in the correct location
-- The generator checks for existing navigation links before adding new ones to prevent duplicates
-- Rebuild assets after generation: `docker-compose exec node npm run build`
-- If automatic navigation update fails, the generator will provide the manual navigation link code
+You can extend the validation rules by modifying the generated controller:
 
-### Route Errors
-If routes don't work, check:
-- Routes are properly added to `routes/web.php`
-- Controller namespace is correct
-- Migration has been run
+```php
+// In CourseController.php
+$request->validate([
+    'title' => 'required|string|max:255|unique:courses,title',
+    'slug' => 'required|string|unique:courses,slug',
+    'price' => 'required|numeric|min:0|max:9999.99',
+    // ... custom rules
+]);
+```
 
-## Contributing
+### File Upload Customization
 
-To extend the CRUD generator:
+Customize file upload handling in the controller:
 
-1. Modify `app/Console/Commands/CreateCrud.php`
-2. Add new field types in the `getInputType()` method
-3. Add new validation rules in the controller generation
-4. Update React component templates as needed
+```php
+// Custom file naming
+$fileName = Str::slug($request->title) . '_' . time() . '.' . $file->getClientOriginalExtension();
 
-## License
+// Custom storage path
+$file->storeAs('public/courses/thumbnails', $fileName);
+```
 
-This CRUD generator is part of your Laravel React application and follows the same license as your project. 
+### Multiple File Uploads
+
+To handle multiple files for the same field, you can modify the controller:
+
+```php
+// Handle multiple files
+if ($request->hasFile('files')) {
+    $fileNames = [];
+    foreach ($request->file('files') as $file) {
+        $fileName = time() . '_' . $file->getClientOriginalName();
+        $file->storeAs('public/courses', $fileName);
+        $fileNames[] = $fileName;
+    }
+    $data['files'] = json_encode($fileNames);
+}
+```
+
+This enhanced CRUD generator provides a solid foundation for building complex applications with file uploads and various data types, while maintaining clean, maintainable code. 

@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
 /**
@@ -45,7 +46,7 @@ class CreateCrud extends Command
         $this->entityPluralLower = strtolower($this->entityPlural);
         
         // Define available field types for Laravel
-        $availableFieldTypes = ['string', 'integer', 'decimal', 'boolean', 'date', 'text', 'email'];
+        $availableFieldTypes = ['string', 'integer', 'decimal', 'boolean', 'date', 'text', 'longtext', 'email', 'file', 'url'];
         
         // Ask for fields with a select menu
         $fields = $this->option('fields') ?? $this->askWithMenu($availableFieldTypes);
@@ -77,8 +78,8 @@ class CreateCrud extends Command
         // Update navigation
         $this->updateNavigation();
 
-        // Run Migration
-        $this->call('migrate');
+        // Run Migration only if table doesn't exist
+        $this->runMigrationIfTableDoesNotExist();
 
         // Build assets
         $this->info('Building frontend assets...');
@@ -88,6 +89,30 @@ class CreateCrud extends Command
         $this->info("Access your CRUD at: /{$this->entityPluralLower}");
         
         return Command::SUCCESS;
+    }
+
+    /**
+     * Run migration only if table doesn't exist
+     */
+    protected function runMigrationIfTableDoesNotExist()
+    {
+        try {
+            // Check if the table already exists
+            $tableExists = Schema::hasTable($this->entityPluralLower);
+            
+            if ($tableExists) {
+                $this->warn("Table '{$this->entityPluralLower}' already exists. Skipping migration.");
+                return;
+            }
+            
+            // Run the migration
+            $this->call('migrate');
+            $this->info("Migration executed successfully for table '{$this->entityPluralLower}'.");
+            
+        } catch (\Exception $e) {
+            $this->error("Error running migration: " . $e->getMessage());
+            $this->warn("You may need to run the migration manually: php artisan migrate");
+        }
     }
 
     /**
@@ -171,8 +196,14 @@ class {$this->entityName} extends Model
                     return "\$table->date('{$name}');";
                 case 'text':
                     return "\$table->text('{$name}')->nullable();";
+                case 'longtext':
+                    return "\$table->longText('{$name}')->nullable();";
                 case 'email':
                     return "\$table->string('{$name}');";
+                case 'file':
+                    return "\$table->string('{$name}')->nullable();";
+                case 'url':
+                    return "\$table->string('{$name}')->nullable();";
                 default:
                     return "\$table->string('{$name}');";
             }
@@ -247,15 +278,39 @@ return new class extends Migration
                     $rules[] = 'date';
                     break;
                 case 'text':
+                case 'longtext':
                     $rules[] = 'string';
                     break;
                 case 'email':
                     $rules[] = 'email';
                     break;
+                case 'file':
+                    $rules[] = 'file';
+                    $rules[] = 'mimes:jpeg,png,jpg,gif,pdf,doc,docx,mp4,mov,avi';
+                    $rules[] = 'max:10240'; // 10MB max
+                    break;
+                case 'url':
+                    $rules[] = 'url';
+                    break;
             }
             
             return "'{$field['name']}' => '" . implode('|', $rules) . "'";
         }, $this->fields));
+
+        // Generate file upload handling code
+        $fileUploadCode = '';
+        foreach ($this->fields as $field) {
+            if ($field['type'] === 'file') {
+                $fileUploadCode .= "
+        // Handle {$field['name']} file upload
+        if (\$request->hasFile('{$field['name']}')) {
+            \$file = \$request->file('{$field['name']}');
+            \$fileName = time() . '_' . \$file->getClientOriginalName();
+            \$file->storeAs('{$this->entityPluralLower}', \$fileName, 'public');
+            \$data['{$field['name']}'] = \$fileName;
+        }";
+            }
+        }
 
         $controllerContent = "<?php
 
@@ -287,7 +342,9 @@ class {$this->entityName}Controller extends Controller
             {$validationRules},
         ]);
 
-        {$this->entityName}::create(\$request->all());
+        \$data = \$request->all();{$fileUploadCode}
+
+        {$this->entityName}::create(\$data);
 
         return redirect()->route('{$this->entityPluralLower}.index')
             ->with('success', '{$this->entityName} created successfully.');
@@ -313,7 +370,9 @@ class {$this->entityName}Controller extends Controller
             {$validationRules},
         ]);
 
-        \${$this->entityLower}->update(\$request->all());
+        \$data = \$request->all();{$fileUploadCode}
+
+        \${$this->entityLower}->update(\$data);
 
         return redirect()->route('{$this->entityPluralLower}.index')
             ->with('success', '{$this->entityName} updated successfully.');
@@ -432,9 +491,10 @@ export default function Index({ auth, {$this->entityPluralLower} }) {
     {
         $formFields = implode("\n                                ", array_map(function ($field) {
             $inputType = $this->getInputType($field['type']);
-            $isTextarea = $field['type'] === 'text';
+            $isTextarea = $field['type'] === 'text' || $field['type'] === 'longtext';
             
             if ($isTextarea) {
+                $rows = $field['type'] === 'longtext' ? '6' : '3';
                 return "<div className=\"mb-4\">
                                     <label className=\"block text-gray-700 text-sm font-bold mb-2\">
                                         {$field['name']}
@@ -443,7 +503,19 @@ export default function Index({ auth, {$this->entityPluralLower} }) {
                                         className=\"shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline\"
                                         value={data.{$field['name']}}
                                         onChange={(e) => setData('{$field['name']}', e.target.value)}
-                                        rows=\"3\"
+                                        rows=\"{$rows}\"
+                                    />
+                                    {errors.{$field['name']} && <div className=\"text-red-500 text-xs\">{errors.{$field['name']}}</div>}
+                                </div>";
+            } elseif ($field['type'] === 'file') {
+                return "<div className=\"mb-4\">
+                                    <label className=\"block text-gray-700 text-sm font-bold mb-2\">
+                                        {$field['name']}
+                                    </label>
+                                    <input
+                                        type=\"file\"
+                                        className=\"shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline\"
+                                        onChange={(e) => setData('{$field['name']}', e.target.files[0])}
                                     />
                                     {errors.{$field['name']} && <div className=\"text-red-500 text-xs\">{errors.{$field['name']}}</div>}
                                 </div>";
@@ -464,6 +536,9 @@ export default function Index({ auth, {$this->entityPluralLower} }) {
         }, $this->fields));
 
         $formData = implode(",\n        ", array_map(function ($field) {
+            if ($field['type'] === 'file') {
+                return "{$field['name']}: null";
+            }
             return "{$field['name']}: ''";
         }, $this->fields));
 
@@ -521,9 +596,10 @@ export default function Create({ auth, errors }) {
     {
         $formFields = implode("\n                                ", array_map(function ($field) {
             $inputType = $this->getInputType($field['type']);
-            $isTextarea = $field['type'] === 'text';
+            $isTextarea = $field['type'] === 'text' || $field['type'] === 'longtext';
             
             if ($isTextarea) {
+                $rows = $field['type'] === 'longtext' ? '6' : '3';
                 return "<div className=\"mb-4\">
                                     <label className=\"block text-gray-700 text-sm font-bold mb-2\">
                                         {$field['name']}
@@ -532,7 +608,19 @@ export default function Create({ auth, errors }) {
                                         className=\"shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline\"
                                         value={data.{$field['name']}}
                                         onChange={(e) => setData('{$field['name']}', e.target.value)}
-                                        rows=\"3\"
+                                        rows=\"{$rows}\"
+                                    />
+                                    {errors.{$field['name']} && <div className=\"text-red-500 text-xs\">{errors.{$field['name']}}</div>}
+                                </div>";
+            } elseif ($field['type'] === 'file') {
+                return "<div className=\"mb-4\">
+                                    <label className=\"block text-gray-700 text-sm font-bold mb-2\">
+                                        {$field['name']}
+                                    </label>
+                                    <input
+                                        type=\"file\"
+                                        className=\"shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline\"
+                                        onChange={(e) => setData('{$field['name']}', e.target.files[0])}
                                     />
                                     {errors.{$field['name']} && <div className=\"text-red-500 text-xs\">{errors.{$field['name']}}</div>}
                                 </div>";
@@ -553,6 +641,9 @@ export default function Create({ auth, errors }) {
         }, $this->fields));
 
         $formData = implode(",\n        ", array_map(function ($field) {
+            if ($field['type'] === 'file') {
+                return "{$field['name']}: null";
+            }
             return "{$field['name']}: {$this->entityLower}.{$field['name']} || ''";
         }, $this->fields));
 
@@ -609,10 +700,47 @@ export default function Edit({ auth, {$this->entityLower}, errors }) {
     protected function generateShowComponent()
     {
         $showFields = implode("\n                                    ", array_map(function ($field) {
-            return "<div>
+            if ($field['type'] === 'file') {
+                return "<div>
+                                        <label className=\"block text-sm font-medium text-gray-700\">{$field['name']}</label>
+                                        <p className=\"mt-1 text-sm text-gray-900\">
+                                            {{$this->entityLower}.{$field['name']} ? (
+                                                <>
+                                                    {/* Check if file is an image */}
+                                                    {/\.(jpg|jpeg|png|gif|webp)$/i.test({$this->entityLower}.{$field['name']}) ? (
+                                                        <div className=\"mt-2\">
+                                                            <img 
+                                                                src={\"/storage/{$this->entityPluralLower}/\" + {$this->entityLower}.{$field['name']}}
+                                                                alt=\"{$field['name']}\"
+                                                                className=\"max-w-xs h-auto rounded-lg shadow-md\"
+                                                            />
+                                                            <a 
+                                                                href={\"/storage/{$this->entityPluralLower}/\" + {$this->entityLower}.{$field['name']}}
+                                                                target=\"_blank\"
+                                                                className=\"block mt-2 text-blue-600 hover:text-blue-800 underline text-sm\"
+                                                            >
+                                                                View full size
+                                                            </a>
+                                                        </div>
+                                                    ) : (
+                                                        <a 
+                                                            href={\"/storage/{$this->entityPluralLower}/\" + {$this->entityLower}.{$field['name']}}
+                                                            target=\"_blank\"
+                                                            className=\"text-blue-600 hover:text-blue-800 underline\"
+                                                        >
+                                                            Download file
+                                                        </a>
+                                                    )}
+                                                </>
+                                            ) : 'No file uploaded'}
+                                        </p>
+                                    </div>";
+            } else {
+                return "<div>
                                         <label className=\"block text-sm font-medium text-gray-700\">{$field['name']}</label>
                                         <p className=\"mt-1 text-sm text-gray-900\">{{$this->entityLower}.{$field['name']}}</p>
                                     </div>";
+            }
         }, $this->fields));
 
         $showContent = "import { Head, Link } from '@inertiajs/react';
@@ -680,6 +808,10 @@ export default function Show({ auth, {$this->entityLower} }) {
                 return 'date';
             case 'boolean':
                 return 'checkbox';
+            case 'file':
+                return 'file';
+            case 'url':
+                return 'url';
             default:
                 return 'text';
         }
