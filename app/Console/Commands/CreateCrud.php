@@ -412,6 +412,20 @@ export default function Index({ auth, {$this->entityPluralLower} }) {
                                         error={errors.{$field['name']}}
                                     />
                                 </div>";
+            } elseif ($field['type'] === 'boolean') {
+                return "<div className=\"mb-4\">
+                                    <div className=\"flex items-center space-x-2\">
+                                        <Switch
+                                            id=\"{$field['name']}\"
+                                            checked={data.{$field['name']}}
+                                            onCheckedChange={(checked) => setData('{$field['name']}', checked)}
+                                        />
+                                        <label htmlFor=\"{$field['name']}\" className=\"text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70\">
+                                            {$field['name']}
+                                        </label>
+                                    </div>
+                                    {errors.{$field['name']} && <div className=\"text-red-500 text-xs mt-1\">{errors.{$field['name']}}</div>}
+                                </div>";
             } else {
                 return "<div className=\"mb-4\">
                                     <label className=\"block text-gray-700 text-sm font-bold mb-2\">
@@ -551,6 +565,20 @@ export default function Create({ auth, errors }) {
                                         error={errors.{$field['name']}}
                                     />
                                 </div>";
+            } elseif ($field['type'] === 'boolean') {
+                return "<div className=\"mb-4\">
+                                    <div className=\"flex items-center space-x-2\">
+                                        <Switch
+                                            id=\"{$field['name']}\"
+                                            checked={data.{$field['name']}}
+                                            onCheckedChange={(checked) => setData('{$field['name']}', checked)}
+                                        />
+                                        <label htmlFor=\"{$field['name']}\" className=\"text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70\">
+                                            {$field['name']}
+                                        </label>
+                                    </div>
+                                    {errors.{$field['name']} && <div className=\"text-red-500 text-xs mt-1\">{errors.{$field['name']}}</div>}
+                                </div>";
             } else {
                 return "<div className=\"mb-4\">
                                     <label className=\"block text-gray-700 text-sm font-bold mb-2\">
@@ -572,6 +600,8 @@ export default function Create({ auth, errors }) {
                 return "{$field['name']}: null";
             } elseif ($field['type'] === 'date') {
                 return "{$field['name']}: {$this->entityLower}.{$field['name']} || null";
+            } elseif ($field['type'] === 'boolean') {
+                return "{$field['name']}: {$this->entityLower}.{$field['name']} || false";
             }
             return "{$field['name']}: {$this->entityLower}.{$field['name']} || ''";
         }, $this->fields));
@@ -581,11 +611,18 @@ export default function Create({ auth, errors }) {
             return $field['type'] === 'date';
         }));
 
+        // Check if we have boolean fields for conditional imports
+        $hasBooleanFields = !empty(array_filter($this->fields, function ($field) {
+            return $field['type'] === 'boolean';
+        }));
+
         $datePickerImport = $hasDateFields ? "import DatePicker from '@/Components/ui/DatePicker';" : "";
+        $switchImport = $hasBooleanFields ? "import { Switch } from '@/Components/ui/ui/switch';" : "";
 
         $editContent = "import { Head, useForm } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 {$datePickerImport}
+{$switchImport}
 
 export default function Edit({ auth, {$this->entityLower}, errors }) {
     const { data, setData, put, processing } = useForm({
