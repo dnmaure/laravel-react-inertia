@@ -1,16 +1,24 @@
 import { Head, useForm } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+{{#if hasDateFields}}
+import DatePicker from '@/Components/ui/DatePicker';
+{{/if}}
 
 export default function Create({ auth, errors }) {
     const { data, setData, post, processing } = useForm({
         {{#each fields}}
-        {{name}}: '',
+        {{name}}: {{#if (eq type "file")}}null{{else if (eq type "date")}}null{{else}}''{{/if}},
         {{/each}}
     });
 
     const submit = (e) => {
         e.preventDefault();
-        post(route('{{entityPlural}}.store'));
+        post(route('{{entityPlural}}.store'), {
+            preserveScroll: true,
+            onSuccess: () => {
+                // Form will be reset automatically
+            },
+        });
     };
 
     return (
@@ -26,18 +34,57 @@ export default function Create({ auth, errors }) {
                         <div className="p-6 text-gray-900">
                             <form onSubmit={submit}>
                                 {{#each fields}}
+                                {{#if (eq type "date")}}
+                                <div className="mb-4">
+                                    <label className="block text-gray-700 text-sm font-bold mb-2">
+                                        {{name}}
+                                    </label>
+                                    <DatePicker
+                                        value={data.{{name}}}
+                                        onChange={(date) => setData('{{name}}', date)}
+                                        placeholder="Select {{name}}"
+                                        error={errors.{{name}}}
+                                    />
+                                </div>
+                                {{else if (eq type "file")}}
                                 <div className="mb-4">
                                     <label className="block text-gray-700 text-sm font-bold mb-2">
                                         {{name}}
                                     </label>
                                     <input
-                                        type="{{#if (eq type "email")}}email{{else if (eq type "integer")}}number{{else if (eq type "decimal")}}number{{else if (eq type "date")}}date{{else}}text{{/if}}"
+                                        type="file"
+                                        className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                                        onChange={(e) => setData('{{name}}', e.target.files[0])}
+                                    />
+                                    {errors.{{name}} && <div className="text-red-500 text-xs">{errors.{{name}}}</div>}
+                                </div>
+                                {{else if (eq type "longtext")}}
+                                <div className="mb-4">
+                                    <label className="block text-gray-700 text-sm font-bold mb-2">
+                                        {{name}}
+                                    </label>
+                                    <textarea
+                                        rows="6"
                                         className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
                                         value={data.{{name}}}
                                         onChange={(e) => setData('{{name}}', e.target.value)}
                                     />
                                     {errors.{{name}} && <div className="text-red-500 text-xs">{errors.{{name}}}</div>}
                                 </div>
+                                {{else}}
+                                <div className="mb-4">
+                                    <label className="block text-gray-700 text-sm font-bold mb-2">
+                                        {{name}}
+                                    </label>
+                                    <input
+                                        type="{{#if (eq type "email")}}email{{else if (eq type "integer")}}number{{else if (eq type "decimal")}}number{{else if (eq type "url")}}url{{else}}text{{/if}}"
+                                        className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                                        value={data.{{name}}}
+                                        onChange={(e) => setData('{{name}}', e.target.value)}
+                                    />
+                                    {errors.{{name}} && <div className="text-red-500 text-xs">{errors.{{name}}}</div>}
+                                </div>
+                                {{/if}}
                                 {{/each}}
 
                                 <div className="flex items-center justify-between">

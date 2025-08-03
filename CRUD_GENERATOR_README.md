@@ -1,284 +1,206 @@
-# Enhanced CRUD Generator for Laravel React with Inertia
+# Laravel React CRUD Generator
 
-This enhanced CRUD generator creates complete CRUD scaffolding for Laravel React applications with Inertia.js, including support for file uploads, long text fields, and various data types.
+A powerful Laravel console command that generates complete CRUD (Create, Read, Update, Delete) functionality with React components using Inertia.js.
 
 ## Features
 
-- **Model Generation** - Creates Eloquent models with proper fillable fields
-- **Migration Generation** - Creates database migrations with appropriate field types
-- **Controller Generation** - Creates controllers with validation and file upload handling
-- **React Components** - Generates Index, Create, Edit, and Show components
-- **Route Generation** - Automatically adds resource routes
-- **Navigation Updates** - Updates the authenticated layout navigation
-- **File Upload Support** - Handles file uploads with proper storage
-- **Date Picker Components** - Modern date picker using shadcn/ui components
-- **Multiple Field Types** - Supports string, integer, decimal, boolean, date, text, longtext, email, file, and url
+- ✅ **Complete CRUD Generation**: Model, Migration, Controller, and React Components
+- ✅ **Advanced Field Types**: string, integer, decimal, boolean, date, text, longtext, email, file, url
+- ✅ **File Upload Support**: Automatic file handling with storage to public disk
+- ✅ **Date Picker Components**: shadcn/ui DatePicker integration for date fields
+- ✅ **Template-Based Generation**: Clean, maintainable templates for all generated code
+- ✅ **Automatic Navigation**: Adds menu items to AuthenticatedLayout
+- ✅ **Smart Migration**: Only runs if table doesn't exist
+- ✅ **Form Validation**: Automatic validation rules based on field types
+- ✅ **Responsive Design**: Tailwind CSS styling with modern UI
 
-## Available Field Types
+## Installation
 
-| Type | Description | Database Column | Validation |
-|------|-------------|----------------|------------|
-| `string` | Short text (max 255 chars) | `VARCHAR(255)` | string, max:255 |
-| `integer` | Whole numbers | `INTEGER` | integer, min:0 |
-| `decimal` | Decimal numbers | `DECIMAL(10,2)` | numeric, min:0 |
-| `boolean` | True/false values | `BOOLEAN` | boolean |
-| `date` | Date values | `DATE` | date (with modern DatePicker component) |
-| `text` | Medium text | `TEXT` | string |
-| `longtext` | Long text content | `LONGTEXT` | string |
-| `email` | Email addresses | `VARCHAR(255)` | email |
-| `file` | File uploads | `VARCHAR(255)` | file, mimes:jpeg,png,jpg,gif,pdf,doc,docx,mp4,mov,avi, max:10240 |
-| `url` | URL links | `VARCHAR(255)` | url |
+1. Ensure you have the required dependencies:
+   ```bash
+   # shadcn/ui components
+   npm install date-fns lucide-react clsx tailwind-merge
+   
+   # Create storage link for file uploads
+   php artisan storage:link
+   ```
+
+2. The command is already available in your Laravel application.
 
 ## Usage
 
-### Basic Usage
-
-```bash
-php artisan create:crud EntityName --fields="field1:type,field2:type|required"
-```
-
-### Simple File Upload Example
-
-For a Document entity with file uploads:
-
-```bash
-php artisan create:crud Document --fields="title:string|required,description:text,file:file|required,category:string"
-```
-
-### Course Entity Example
-
-For a Course entity with long descriptions, PDF files, and videos:
-
-```bash
-php artisan create:crud Course --fields="title:string|required,slug:string|required,short_description:text|required,long_description:longtext|required,duration:integer|required,price:decimal|required,status:string|required,thumbnail_image:file,pdf_materials:file,video_url:url,video_file:file,difficulty_level:string|required,category_id:integer|required,instructor_id:integer|required,is_featured:boolean,published_at:date"
-```
-
 ### Interactive Mode
-
-If you don't provide the `--fields` option, the generator will ask you interactively:
-
 ```bash
-php artisan create:crud Course
+php artisan create:crud Product
 ```
 
-## Course Entity Field Breakdown
+The command will prompt you to:
+1. Enter field names
+2. Select field types from a menu
+3. Continue until you're done (press Enter to finish)
 
-### Basic Information
-- `title:string|required` - Course title
-- `slug:string|required` - URL-friendly identifier
-- `short_description:text|required` - Brief course description
-- `long_description:longtext|required` - Detailed course description
-- `duration:integer|required` - Course duration in minutes
-- `price:decimal|required` - Course price
-- `status:string|required` - Course status (draft, published, archived)
-
-### Media Files
-- `thumbnail_image:file` - Course thumbnail/cover image
-- `pdf_materials:file` - PDF course materials
-- `video_url:url` - Video URL (YouTube, Vimeo, etc.)
-- `video_file:file` - Uploaded video file
-
-### Additional Metadata
-- `difficulty_level:string|required` - Beginner, Intermediate, Advanced
-- `category_id:integer|required` - Foreign key to categories table
-- `instructor_id:integer|required` - Foreign key to users table
-- `is_featured:boolean` - Featured course flag
-- `published_at:date` - Publication date
-
-## Date Picker Component
-
-The CRUD generator now includes a modern date picker component built with shadcn/ui styling. For fields of type `date`, the generator automatically uses the `DatePicker` component instead of the basic HTML date input.
-
-### Features:
-- **Modern UI** - Clean, accessible design following shadcn/ui patterns
-- **Date Selection** - Calendar-style date picker with 365 days of options
-- **Error Handling** - Displays validation errors with proper styling
-- **Responsive** - Works well on desktop and mobile devices
-- **Accessible** - Proper ARIA labels and keyboard navigation
-
-### Usage in Generated Components:
-```jsx
-<DatePicker
-    value={data.start_date}
-    onChange={(date) => setData('start_date', date)}
-    placeholder="Select start_date"
-    error={errors.start_date}
-/>
+### Command Line Mode
+```bash
+php artisan create:crud Product --fields="name:string,price:decimal,description:text,image:file,created_at:date"
 ```
 
-### Dependencies:
-The DatePicker component requires the following packages (automatically installed):
-- `@radix-ui/react-popover`
-- `@radix-ui/react-slot`
-- `class-variance-authority`
-- `clsx`
-- `tailwind-merge`
-- `lucide-react`
-- `date-fns`
+## Supported Field Types
+
+| Type | Description | Database Column | Form Input |
+|------|-------------|----------------|------------|
+| `string` | Short text | `VARCHAR(255)` | Text input |
+| `integer` | Whole numbers | `INT` | Number input |
+| `decimal` | Decimal numbers | `DECIMAL(10,2)` | Number input |
+| `boolean` | True/False | `BOOLEAN` | Checkbox |
+| `date` | Date only | `DATE` | DatePicker component |
+| `text` | Long text | `TEXT` | Textarea (3 rows) |
+| `longtext` | Very long text | `LONGTEXT` | Textarea (6 rows) |
+| `email` | Email address | `VARCHAR(255)` | Email input |
+| `file` | File upload | `VARCHAR(255)` | File input |
+| `url` | URL/Website | `VARCHAR(255)` | URL input |
 
 ## Generated Files
 
-The generator creates the following files:
+The command creates the following files:
 
 ### Backend (Laravel)
-- `app/Models/Course.php` - Eloquent model
-- `database/migrations/YYYY_MM_DD_HHMMSS_create_courses_table.php` - Database migration
-- `app/Http/Controllers/CourseController.php` - Controller with CRUD operations
+- `app/Models/{Entity}.php` - Eloquent model with fillable fields and date casting
+- `app/Http/Controllers/{Entity}Controller.php` - Full CRUD controller with validation
+- `database/migrations/{timestamp}_create_{entities}_table.php` - Database migration
+- `routes/web.php` - Resource routes (automatically added)
 
 ### Frontend (React)
-- `resources/js/Pages/Courses/Index.jsx` - List all courses
-- `resources/js/Pages/Courses/Create.jsx` - Create new course form
-- `resources/js/Pages/Courses/Edit.jsx` - Edit existing course form
-- `resources/js/Pages/Courses/Show.jsx` - Display course details
+- `resources/js/Pages/{Entities}/Index.jsx` - List view with table
+- `resources/js/Pages/{Entities}/Create.jsx` - Create form
+- `resources/js/Pages/{Entities}/Edit.jsx` - Edit form
+- `resources/js/Pages/{Entities}/Show.jsx` - Detail view
+- `resources/js/Layouts/AuthenticatedLayout.jsx` - Navigation menu (updated)
 
-### Routes
-- Adds resource routes to `routes/web.php`
-- Updates navigation in `resources/js/Layouts/AuthenticatedLayout.jsx`
+## Template System
 
-## File Upload Handling
+The generator uses a clean template system located in `resources/templates/`:
 
-The generator automatically handles file uploads:
+- `model.stub` - Eloquent model template
+- `controller.stub` - Laravel controller template
+- `migration.stub` - Database migration template
+- `react_index.stub` - React index component template
+- `react_create.stub` - React create component template
+- `react_edit.stub` - React edit component template
+- `react_show.stub` - React show component template
 
-1. **Storage**: Files are stored in `storage/app/public/{entity_plural}/`
-2. **Validation**: Supports common file types (images, PDFs, documents, videos)
-3. **Size Limit**: 10MB maximum file size
-4. **Display**: Show component includes download links for uploaded files
+### Template Placeholders
 
-### File Upload Features
+Templates use simple placeholder replacement:
+- `{{entity}}` - Entity name (singular, PascalCase)
+- `{{entityLower}}` - Entity name (singular, camelCase)
+- `{{entityPlural}}` - Entity name (plural, PascalCase)
+- `{{entityPluralLower}}` - Entity name (plural, kebab-case)
+- `{{fields}}` - Field definitions
+- `{{fieldsValidation}}` - Validation rules
+- `{{fieldsFillable}}` - Fillable fields
+- `{{migrationFields}}` - Migration field definitions
+- `{{fileUploadCode}}` - File upload handling code
+- `{{dateFormatCode}}` - Date formatting code
+- `{{dateCasts}}` - Date casting definitions
 
-- **Automatic File Naming**: Files are renamed with timestamp prefix to avoid conflicts
-- **Storage Organization**: Files are stored in entity-specific folders
-- **Download Links**: Show component displays clickable links to download files
-- **Form Handling**: React forms properly handle file input changes
-- **Validation**: Server-side validation for file types and sizes
+## Date Picker Component
+
+The generator automatically integrates the shadcn/ui DatePicker component for `date` fields:
+
+### Features
+- Modern calendar interface
+- Date formatting with `date-fns`
+- Error handling integration
+- Responsive design
+
+### Dependencies
+- `date-fns` - Date utility library
+- `lucide-react` - Icon library
+- `clsx` and `tailwind-merge` - Class name utilities
+
+### Usage in Templates
+```jsx
+import DatePicker from '@/Components/ui/DatePicker';
+
+<DatePicker
+    value={data.fieldName}
+    onChange={(date) => setData('fieldName', date)}
+    placeholder="Select field name"
+    error={errors.fieldName}
+/>
+```
+
+## File Upload Features
+
+### Storage
+- Files are stored in `storage/app/public/{entityPlural}/`
+- Automatic file naming with timestamps
+- Public disk configuration
+
+### Display
+- Images are displayed inline with thumbnails
+- Non-image files show download links
+- Responsive image sizing
+
+### Validation
+- Automatic file validation rules
+- Support for various file types
+- Configurable file size limits
+
+## Examples
+
+### Create a Product CRUD
+```bash
+php artisan create:crud Product --fields="name:string,price:decimal,description:text,image:file,is_active:boolean"
+```
+
+### Create an Event CRUD
+```bash
+php artisan create:crud Event --fields="title:string,start_date:date,end_date:date,description:longtext,website:url"
+```
+
+### Create a User Profile CRUD
+```bash
+php artisan create:crud Profile --fields="bio:text,avatar:file,birth_date:date,phone:string,website:url"
+```
 
 ## Customization
 
+### Modifying Templates
+Edit the template files in `resources/templates/` to customize the generated code:
+- Add new field types
+- Modify styling
+- Change component structure
+- Add custom validation rules
+
 ### Adding New Field Types
-
-To add new field types, update the following methods in `CreateCrud.php`:
-
-1. Add to `$availableFieldTypes` array
-2. Add case in `generateMigration()` method
-3. Add case in `generateController()` validation rules
-4. Add case in `getInputType()` method
-
-### Modifying Validation Rules
-
-Edit the validation rules in the `generateController()` method to customize validation for your specific needs.
-
-### Customizing React Components
-
-The generated React components use Tailwind CSS for styling. You can customize the appearance by modifying the generated component files.
-
-## Post-Generation Steps
-
-After running the generator:
-
-1. **Run Migrations**: `php artisan migrate`
-2. **Build Assets**: `docker-compose exec node npm run build`
-3. **Create Storage Link**: `php artisan storage:link` (if not already done)
-4. **Set Permissions**: Ensure storage directory is writable
-
-## Example Generated Controller Methods
-
-### Store Method with File Upload
-```php
-public function store(Request $request)
-{
-    $request->validate([
-        'title' => 'required|string|max:255',
-        'long_description' => 'required|string',
-        'thumbnail_image' => 'nullable|file|mimes:jpeg,png,jpg,gif,pdf,doc,docx,mp4,mov,avi|max:10240',
-        // ... other validation rules
-    ]);
-
-    $data = $request->all();
-    
-    // Handle file uploads
-    if ($request->hasFile('thumbnail_image')) {
-        $file = $request->file('thumbnail_image');
-        $fileName = time() . '_' . $file->getClientOriginalName();
-        $file->storeAs('public/courses', $fileName);
-        $data['thumbnail_image'] = $fileName;
-    }
-
-    Course::create($data);
-
-    return redirect()->route('courses.index')
-        ->with('success', 'Course created successfully.');
-}
-```
+1. Add the field type to `$availableFieldTypes` in the command
+2. Update the migration template to handle the new type
+3. Update React templates to render appropriate inputs
+4. Add validation rules in the controller template
 
 ## Troubleshooting
 
 ### Common Issues
+1. **Storage Link**: Ensure `php artisan storage:link` is run
+2. **File Permissions**: Check storage directory permissions
+3. **Template Errors**: Verify template syntax and placeholders
+4. **Migration Errors**: Check if table already exists
 
-1. **File Upload Not Working**: Ensure storage link is created and permissions are set
-2. **Validation Errors**: Check that all required fields are provided
-3. **Route Not Found**: Verify routes are properly added to `web.php`
-4. **Component Not Rendering**: Check that Inertia is properly configured
+### Debugging
+- Check generated files for syntax errors
+- Verify template placeholder replacements
+- Review Laravel logs for errors
+- Test individual components
 
-### File Permissions
+## Contributing
 
-Ensure your storage directory has proper write permissions:
+To improve the generator:
+1. Update templates in `resources/templates/`
+2. Modify the `CreateCrud` command logic
+3. Add new field types and validation rules
+4. Enhance React component functionality
 
-```bash
-chmod -R 775 storage/
-chmod -R 775 bootstrap/cache/
-```
+## License
 
-### Storage Link
-
-If files are not accessible, create the storage link:
-
-```bash
-php artisan storage:link
-```
-
-## Advanced Usage
-
-### Custom Validation Rules
-
-You can extend the validation rules by modifying the generated controller:
-
-```php
-// In CourseController.php
-$request->validate([
-    'title' => 'required|string|max:255|unique:courses,title',
-    'slug' => 'required|string|unique:courses,slug',
-    'price' => 'required|numeric|min:0|max:9999.99',
-    // ... custom rules
-]);
-```
-
-### File Upload Customization
-
-Customize file upload handling in the controller:
-
-```php
-// Custom file naming
-$fileName = Str::slug($request->title) . '_' . time() . '.' . $file->getClientOriginalExtension();
-
-// Custom storage path
-$file->storeAs('public/courses/thumbnails', $fileName);
-```
-
-### Multiple File Uploads
-
-To handle multiple files for the same field, you can modify the controller:
-
-```php
-// Handle multiple files
-if ($request->hasFile('files')) {
-    $fileNames = [];
-    foreach ($request->file('files') as $file) {
-        $fileName = time() . '_' . $file->getClientOriginalName();
-        $file->storeAs('public/courses', $fileName);
-        $fileNames[] = $fileName;
-    }
-    $data['files'] = json_encode($fileNames);
-}
-```
-
-This enhanced CRUD generator provides a solid foundation for building complex applications with file uploads and various data types, while maintaining clean, maintainable code. 
+This CRUD generator is part of the Laravel React application and follows the same license terms. 

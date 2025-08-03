@@ -20,7 +20,45 @@ export default function Show({ auth, {{entityLower}} }) {
                                     {{#each fields}}
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700">{{name}}</label>
+                                        {{#if (eq type "file")}}
+                                        <div className="mt-1">
+                                            {{{{entityLower}}.{{name}} ? (
+                                                <div>
+                                                    {{{{entityLower}}.{{name}}.match(/\.(jpg|jpeg|png|gif|webp)$/i) ? (
+                                                        <img 
+                                                            src={`/storage/{{entityPlural}}/${{{entityLower}}.{{name}}}`} 
+                                                            alt="{{name}}" 
+                                                            className="max-w-xs rounded shadow-sm"
+                                                        />
+                                                    ) : (
+                                                        <a 
+                                                            href={`/storage/{{entityPlural}}/${{{entityLower}}.{{name}}}`} 
+                                                            download
+                                                            className="text-blue-600 hover:text-blue-800 underline"
+                                                        >
+                                                            Download {{name}}
+                                                        </a>
+                                                    )}
+                                                </div>
+                                            ) : (
+                                                <p className="text-gray-500">No file uploaded</p>
+                                            )}
+                                        </div>
+                                        {{else if (eq type "date")}}
+                                        <p className="mt-1 text-sm text-gray-900">
+                                            {{{{entityLower}}.{{name}} ? new Date({{entityLower}}.{{name}}).toLocaleDateString() : 'Not set'}}
+                                        </p>
+                                        {{else if (eq type "url")}}
+                                        <p className="mt-1 text-sm text-gray-900">
+                                            {{{{entityLower}}.{{name}} ? (
+                                                <a href={{{{entityLower}}.{{name}}} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 underline">
+                                                    {{{{entityLower}}.{{name}}}}
+                                                </a>
+                                            ) : 'Not set'}}
+                                        </p>
+                                        {{else}}
                                         <p className="mt-1 text-sm text-gray-900">{{{entityLower}}.{{name}}}</p>
+                                        {{/if}}
                                     </div>
                                     {{/each}}
                                 </div>

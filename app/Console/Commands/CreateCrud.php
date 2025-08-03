@@ -4,152 +4,107 @@ namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\File;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
-/**
- * Use example: php artisan create:crud Product --fields="name:string,price:decimal,stock:integer"
- */
 class CreateCrud extends Command
 {
+    protected $signature = 'create:crud {entity} {--fields=}';
+    protected $description = 'Create a complete CRUD for an entity with React components';
+
     protected $entityName;
-    protected $fields;
     protected $entityLower;
     protected $entityPlural;
     protected $entityPluralLower;
+    protected $fields = [];
 
-    /**
-     * The name and signature of the console command.
-     *
-     * @var string
-     */
-    protected $signature = 'create:crud {name? : The entity name} {--fields=}';
+    protected $availableFieldTypes = [
+        'string', 'integer', 'decimal', 'boolean', 'date', 'text', 
+        'longtext', 'email', 'file', 'url'
+    ];
 
-    /**
-     * The console command description.
-     *
-     * @var string
-     */
-    protected $description = 'Generate complete CRUD scaffolding for Laravel React with Inertia';
-
-    /**
-     * Execute the console command.
-     *
-     * @return int
-     */
     public function handle()
     {
-        $this->entityName = $this->argument('name') ?? $this->ask('What is the entity name?');
+        $this->entityName = ucfirst($this->argument('entity'));
         $this->entityLower = strtolower($this->entityName);
         $this->entityPlural = Str::plural($this->entityName);
         $this->entityPluralLower = strtolower($this->entityPlural);
-        
-        // Define available field types for Laravel
-        $availableFieldTypes = ['string', 'integer', 'decimal', 'boolean', 'date', 'text', 'longtext', 'email', 'file', 'url'];
-        
-        // Ask for fields with a select menu
-        $fields = $this->option('fields') ?? $this->askWithMenu($availableFieldTypes);
 
-        // validate fields
-        if (empty($fields)) {
-            $this->error('Fields cannot be empty');
-            return Command::FAILURE;
+        $this->info("Creating CRUD for {$this->entityName}...");
+
+        // Get fields from user
+        $fieldsInput = $this->option('fields');
+        if (!$fieldsInput) {
+            $this->fields = $this->askForFields();
+        } else {
+            $this->fields = $this->parseFields($fieldsInput);
         }
 
-        // Parse fields
-        $this->fields = $this->parseFields($fields);
-
-        // Generate Model
+        // Generate all components
         $this->generateModel();
-
-        // Generate Migration
         $this->generateMigration();
-
-        // Generate Controller
         $this->generateController();
-
-        // Generate React Components
         $this->generateReactComponents();
-
-        // Add web routes
         $this->addWebRoutes();
-
-        // Update navigation
         $this->updateNavigation();
 
-        // Run Migration only if table doesn't exist
+        // Run migration if table doesn't exist
         $this->runMigrationIfTableDoesNotExist();
 
-        // Build assets
-        $this->info('Building frontend assets...');
-        $this->info('Please run: docker-compose exec node npm run build');
-
         $this->info("CRUD for {$this->entityName} created successfully!");
-        $this->info("Access your CRUD at: /{$this->entityPluralLower}");
-        
-        return Command::SUCCESS;
+        $this->info("Don't forget to run: php artisan storage:link");
     }
 
-    /**
-     * Run migration only if table doesn't exist
-     */
-    protected function runMigrationIfTableDoesNotExist()
+    protected function askForFields()
     {
-        try {
-            // Check if the table already exists
-            $tableExists = Schema::hasTable($this->entityPluralLower);
-            
-            if ($tableExists) {
-                $this->warn("Table '{$this->entityPluralLower}' already exists. Skipping migration.");
-                return;
+        $fields = [];
+        $this->info("Enter fields for {$this->entityName} (press Enter when done):");
+
+        while (true) {
+            $fieldName = $this->ask("Field name (or press Enter to finish)");
+            if (empty($fieldName)) {
+                break;
             }
-            
-            // Run the migration
-            $this->call('migrate');
-            $this->info("Migration executed successfully for table '{$this->entityPluralLower}'.");
-            
-        } catch (\Exception $e) {
-            $this->error("Error running migration: " . $e->getMessage());
-            $this->warn("You may need to run the migration manually: php artisan migrate");
+
+            $fieldType = $this->askWithMenu($this->availableFieldTypes, "Field type for '{$fieldName}'");
+
+            $fields[] = [
+                'name' => $fieldName,
+                'type' => $fieldType,
+            ];
         }
+
+        return $fields;
     }
 
-    /**
-     * Parse the fields option into an array of field definitions.
-     *
-     * @param string|null $fields
-     * @return array
-     */
-    protected function parseFields($fields)
+    protected function parseFields($fieldsString)
     {
-        $parsedFields = [];
-        if ($fields) {
-            $fieldsArray = explode(',', $fields);
-            foreach ($fieldsArray as $field) {
-                [$name, $type] = explode(':', $field);
-                $isRequired = false;
+        $fields = [];
+        $fieldPairs = explode(',', $fieldsString);
 
-                // Check if the field has a "required" flag
-                if (strpos($type, '|required') !== false) {
-                    $type = str_replace('|required', '', $type);
-                    $isRequired = true;
-                }
-
-                $parsedFields[] = [
-                    'type' => $type,
-                    'name' => $name,
-                    'required' => $isRequired,
+        foreach ($fieldPairs as $pair) {
+            $parts = explode(':', trim($pair));
+            if (count($parts) === 2) {
+                $fields[] = [
+                    'name' => trim($parts[0]),
+                    'type' => trim($parts[1]),
                 ];
             }
         }
-        Log::info('Parsed fields:', $parsedFields);
-        return $parsedFields;
+
+        return $fields;
     }
 
-    /**
-     * Generate the Model
-     */
+    protected function runMigrationIfTableDoesNotExist()
+    {
+        if (!Schema::hasTable($this->entityPluralLower)) {
+            $this->call('migrate');
+            $this->info("Migration executed successfully.");
+        } else {
+            $this->info("Table '{$this->entityPluralLower}' already exists. Skipping migration.");
+        }
+    }
+
     protected function generateModel()
     {
         $fillableFields = implode(",\n        ", array_map(function ($field) {
@@ -161,39 +116,34 @@ class CreateCrud extends Command
             return $field['type'] === 'date';
         });
         
-        $casts = '';
+        $dateCasts = '';
         if (!empty($dateFields)) {
             $castFields = implode(",\n        ", array_map(function ($field) {
                 return "'{$field['name']}' => 'date'";
             }, $dateFields));
-            $casts = "
+            $dateCasts = "
 
     protected \$casts = [
         {$castFields},
     ];";
         }
 
-        $modelContent = "<?php
-
-namespace App\Models;
-
-use Illuminate\Database\Eloquent\Model;
-
-class {$this->entityName} extends Model
-{
-    protected \$fillable = [
-        {$fillableFields},
-    ];{$casts}
-}";
+        $template = File::get(resource_path('templates/model.stub'));
+        $content = str_replace([
+            '{{entity}}',
+            '{{fieldsFillable}}',
+            '{{dateCasts}}'
+        ], [
+            $this->entityName,
+            $fillableFields,
+            $dateCasts
+        ], $template);
 
         $modelPath = app_path("Models/{$this->entityName}.php");
-        File::put($modelPath, $modelContent);
+        File::put($modelPath, $content);
         $this->info("Model created: {$modelPath}");
     }
 
-    /**
-     * Generate the Migration
-     */
     protected function generateMigration()
     {
         $migrationFields = implode("\n            ", array_map(function ($field) {
@@ -226,95 +176,61 @@ class {$this->entityName} extends Model
             }
         }, $this->fields));
 
-        $migrationContent = "<?php
-
-use Illuminate\Database\Migrations\Migration;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
-
-return new class extends Migration
-{
-    /**
-     * Run the migrations.
-     */
-    public function up(): void
-    {
-        Schema::create('{$this->entityPluralLower}', function (Blueprint \$table) {
-            \$table->id();
-            {$migrationFields}
-            \$table->timestamps();
-        });
-    }
-
-    /**
-     * Reverse the migrations.
-     */
-    public function down(): void
-    {
-        Schema::dropIfExists('{$this->entityPluralLower}');
-    }
-};";
+        $template = File::get(resource_path('templates/migration.stub'));
+        $content = str_replace([
+            '{{entityPlural}}',
+            '{{migrationFields}}'
+        ], [
+            $this->entityPluralLower,
+            $migrationFields
+        ], $template);
 
         $migrationFileName = now()->format('Y_m_d_His') . "_create_{$this->entityPluralLower}_table.php";
         $migrationPath = database_path("migrations/{$migrationFileName}");
-        File::put($migrationPath, $migrationContent);
+        File::put($migrationPath, $content);
         $this->info("Migration created: {$migrationPath}");
     }
 
-    /**
-     * Generate the Controller
-     */
     protected function generateController()
     {
         $validationRules = implode(",\n            ", array_map(function ($field) {
             $rules = [];
             
-            if ($field['required']) {
-                $rules[] = 'required';
-            } else {
-                $rules[] = 'nullable';
-            }
-            
             switch ($field['type']) {
                 case 'string':
-                    $rules[] = 'string';
-                    $rules[] = 'max:255';
-                    break;
-                case 'integer':
-                    $rules[] = 'integer';
-                    $rules[] = 'min:0';
-                    break;
-                case 'decimal':
-                    $rules[] = 'numeric';
-                    $rules[] = 'min:0';
-                    break;
-                case 'boolean':
-                    $rules[] = 'boolean';
-                    break;
-                case 'date':
-                    $rules[] = 'date';
-                    break;
                 case 'text':
                 case 'longtext':
-                    $rules[] = 'string';
+                    $rules[] = 'nullable|string';
+                    break;
+                case 'integer':
+                    $rules[] = 'nullable|integer';
+                    break;
+                case 'decimal':
+                    $rules[] = 'nullable|numeric';
+                    break;
+                case 'boolean':
+                    $rules[] = 'nullable|boolean';
+                    break;
+                case 'date':
+                    $rules[] = 'nullable|date';
                     break;
                 case 'email':
-                    $rules[] = 'email';
+                    $rules[] = 'nullable|email';
                     break;
                 case 'file':
-                    $rules[] = 'file';
-                    $rules[] = 'mimes:jpeg,png,jpg,gif,pdf,doc,docx,mp4,mov,avi';
-                    $rules[] = 'max:10240'; // 10MB max
+                    $rules[] = 'nullable|file';
                     break;
                 case 'url':
-                    $rules[] = 'url';
+                    $rules[] = 'nullable|url';
                     break;
+                default:
+                    $rules[] = 'nullable|string';
             }
             
             return "'{$field['name']}' => '" . implode('|', $rules) . "'";
         }, $this->fields));
 
-                // Generate file upload handling code
+        // Generate file upload handling code
         $fileUploadCode = '';
         $dateFormatCode = '';
         foreach ($this->fields as $field) {
@@ -337,89 +253,30 @@ return new class extends Migration
             }
         }
 
-        $controllerContent = "<?php
-
-namespace App\Http\Controllers;
-
-use App\Models\\{$this->entityName};
-use Illuminate\Http\Request;
-use Inertia\Inertia;
-
-class {$this->entityName}Controller extends Controller
-{
-    public function index()
-    {
-        \${$this->entityPluralLower} = {$this->entityName}::latest()->paginate(10);
-        
-        return Inertia::render('{$this->entityPlural}/Index', [
-            '{$this->entityPluralLower}' => \${$this->entityPluralLower},
-        ]);
-    }
-
-    public function create()
-    {
-        return Inertia::render('{$this->entityPlural}/Create');
-    }
-
-    public function store(Request \$request)
-    {
-        \$request->validate([
-            {$validationRules},
-        ]);
-
-        \$data = \$request->all();{$fileUploadCode}{$dateFormatCode}
-
-        {$this->entityName}::create(\$data);
-
-        return redirect()->route('{$this->entityPluralLower}.index')
-            ->with('success', '{$this->entityName} created successfully.');
-    }
-
-    public function show({$this->entityName} \${$this->entityLower})
-    {
-        return Inertia::render('{$this->entityPlural}/Show', [
-            '{$this->entityLower}' => \${$this->entityLower},
-        ]);
-    }
-
-    public function edit({$this->entityName} \${$this->entityLower})
-    {
-        return Inertia::render('{$this->entityPlural}/Edit', [
-            '{$this->entityLower}' => \${$this->entityLower},
-        ]);
-    }
-
-    public function update(Request \$request, {$this->entityName} \${$this->entityLower})
-    {
-        \$request->validate([
-            {$validationRules},
-        ]);
-
-        \$data = \$request->all();{$fileUploadCode}{$dateFormatCode}
-
-        \${$this->entityLower}->update(\$data);
-
-        return redirect()->route('{$this->entityPluralLower}.index')
-            ->with('success', '{$this->entityName} updated successfully.');
-    }
-
-    public function destroy({$this->entityName} \${$this->entityLower})
-    {
-        \${$this->entityLower}->delete();
-
-        return redirect()->route('{$this->entityPluralLower}.index')
-            ->with('success', '{$this->entityName} deleted successfully.');
-    }
-}";
+        $template = File::get(resource_path('templates/controller.stub'));
+        $content = str_replace([
+            '{{entity}}',
+            '{{entityLower}}',
+            '{{entityPlural}}',
+            '{{entityPluralLower}}',
+            '{{fieldsValidation}}',
+            '{{fileUploadCode}}',
+            '{{dateFormatCode}}'
+        ], [
+            $this->entityName,
+            $this->entityLower,
+            $this->entityPlural,
+            $this->entityPluralLower,
+            $validationRules,
+            $fileUploadCode,
+            $dateFormatCode
+        ], $template);
 
         $controllerPath = app_path("Http/Controllers/{$this->entityName}Controller.php");
-        File::put($controllerPath, $controllerContent);
+        File::put($controllerPath, $content);
         $this->info("Controller created: {$controllerPath}");
     }
 
-    /**
-     * Generate React Components
-     */
     protected function generateReactComponents()
     {
         $componentsDir = resource_path("js/Pages/{$this->entityPlural}");
@@ -581,9 +438,16 @@ export default function Index({ auth, {$this->entityPluralLower} }) {
             return "{$field['name']}: ''";
         }, $this->fields));
 
+        // Check if we have date fields for conditional imports
+        $hasDateFields = !empty(array_filter($this->fields, function ($field) {
+            return $field['type'] === 'date';
+        }));
+
+        $datePickerImport = $hasDateFields ? "import DatePicker from '@/Components/ui/DatePicker';" : "";
+
         $createContent = "import { Head, useForm } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import DatePicker from '@/Components/ui/DatePicker';
+{$datePickerImport}
 
 export default function Create({ auth, errors }) {
     const { data, setData, post, processing } = useForm({
@@ -592,7 +456,12 @@ export default function Create({ auth, errors }) {
 
     const submit = (e) => {
         e.preventDefault();
-        post(route('{$this->entityPluralLower}.store'));
+        post(route('{$this->entityPluralLower}.store'), {
+            preserveScroll: true,
+            onSuccess: () => {
+                // Form will be reset automatically
+            },
+        });
     };
 
     return (
@@ -701,9 +570,16 @@ export default function Create({ auth, errors }) {
             return "{$field['name']}: {$this->entityLower}.{$field['name']} || ''";
         }, $this->fields));
 
+        // Check if we have date fields for conditional imports
+        $hasDateFields = !empty(array_filter($this->fields, function ($field) {
+            return $field['type'] === 'date';
+        }));
+
+        $datePickerImport = $hasDateFields ? "import DatePicker from '@/Components/ui/DatePicker';" : "";
+
         $editContent = "import { Head, useForm } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import DatePicker from '@/Components/ui/DatePicker';
+{$datePickerImport}
 
 export default function Edit({ auth, {$this->entityLower}, errors }) {
     const { data, setData, put, processing } = useForm({
@@ -712,7 +588,12 @@ export default function Edit({ auth, {$this->entityLower}, errors }) {
 
     const submit = (e) => {
         e.preventDefault();
-        put(route('{$this->entityPluralLower}.update', {$this->entityLower}.id));
+        put(route('{$this->entityPluralLower}.update', {$this->entityLower}.id), {
+            preserveScroll: true,
+            onSuccess: () => {
+                // Form will be reset automatically
+            },
+        });
     };
 
     return (
@@ -758,36 +639,46 @@ export default function Edit({ auth, {$this->entityLower}, errors }) {
             if ($field['type'] === 'file') {
                 return "<div>
                                         <label className=\"block text-sm font-medium text-gray-700\">{$field['name']}</label>
-                                        <p className=\"mt-1 text-sm text-gray-900\">
+                                        <div className=\"mt-1\">
                                             {{$this->entityLower}.{$field['name']} ? (
-                                                <>
-                                                    {/* Check if file is an image */}
-                                                    {/\.(jpg|jpeg|png|gif|webp)$/i.test({$this->entityLower}.{$field['name']}) ? (
-                                                        <div className=\"mt-2\">
-                                                            <img 
-                                                                src={\"/storage/{$this->entityPluralLower}/\" + {$this->entityLower}.{$field['name']}}
-                                                                alt=\"{$field['name']}\"
-                                                                className=\"max-w-xs h-auto rounded-lg shadow-md\"
-                                                            />
-                                                            <a 
-                                                                href={\"/storage/{$this->entityPluralLower}/\" + {$this->entityLower}.{$field['name']}}
-                                                                target=\"_blank\"
-                                                                className=\"block mt-2 text-blue-600 hover:text-blue-800 underline text-sm\"
-                                                            >
-                                                                View full size
-                                                            </a>
-                                                        </div>
+                                                <div>
+                                                    {{$this->entityLower}.{$field['name']}.match(/\\.(jpg|jpeg|png|gif|webp)$/i) ? (
+                                                        <img 
+                                                            src={\"/storage/{$this->entityPluralLower}/\" + {$this->entityLower}.{$field['name']}} 
+                                                            alt=\"{$field['name']}\" 
+                                                            className=\"max-w-xs rounded shadow-sm\"
+                                                        />
                                                     ) : (
                                                         <a 
-                                                            href={\"/storage/{$this->entityPluralLower}/\" + {$this->entityLower}.{$field['name']}}
-                                                            target=\"_blank\"
+                                                            href={\"/storage/{$this->entityPluralLower}/\" + {$this->entityLower}.{$field['name']}} 
+                                                            download
                                                             className=\"text-blue-600 hover:text-blue-800 underline\"
                                                         >
-                                                            Download file
+                                                            Download {$field['name']}
                                                         </a>
                                                     )}
-                                                </>
-                                            ) : 'No file uploaded'}
+                                                </div>
+                                            ) : (
+                                                <p className=\"text-gray-500\">No file uploaded</p>
+                                            )}
+                                        </div>
+                                    </div>";
+            } elseif ($field['type'] === 'date') {
+                return "<div>
+                                        <label className=\"block text-sm font-medium text-gray-700\">{$field['name']}</label>
+                                        <p className=\"mt-1 text-sm text-gray-900\">
+                                            {{$this->entityLower}.{$field['name']} ? new Date({$this->entityLower}.{$field['name']}).toLocaleDateString() : 'Not set'}
+                                        </p>
+                                    </div>";
+            } elseif ($field['type'] === 'url') {
+                return "<div>
+                                        <label className=\"block text-sm font-medium text-gray-700\">{$field['name']}</label>
+                                        <p className=\"mt-1 text-sm text-gray-900\">
+                                            {{$this->entityLower}.{$field['name']} ? (
+                                                <a href={{{$this->entityLower}.{$field['name']}}} target=\"_blank\" rel=\"noopener noreferrer\" className=\"text-blue-600 hover:text-blue-800 underline\">
+                                                    {{$this->entityLower}.{$field['name']}}
+                                                </a>
+                                            ) : 'Not set'}
                                         </p>
                                     </div>";
             } else {
@@ -848,9 +739,8 @@ export default function Show({ auth, {$this->entityLower} }) {
         $this->info("Show component created: {$showPath}");
     }
 
-    /**
-     * Get input type for form fields
-     */
+
+
     protected function getInputType($fieldType)
     {
         switch ($fieldType) {
@@ -859,12 +749,6 @@ export default function Show({ auth, {$this->entityLower} }) {
             case 'integer':
             case 'decimal':
                 return 'number';
-            case 'date':
-                return 'date';
-            case 'boolean':
-                return 'checkbox';
-            case 'file':
-                return 'file';
             case 'url':
                 return 'url';
             default:
@@ -872,23 +756,16 @@ export default function Show({ auth, {$this->entityLower} }) {
         }
     }
 
-    /**
-     * Add web routes to routes/web.php
-     */
     protected function addWebRoutes()
     {
-        $routesFile = base_path('routes/web.php');
-        
-        // Read the file
-        $content = File::get($routesFile);
-        
-        // Add the use statement at the top
+        $routesPath = base_path('routes/web.php');
+        $routes = File::get($routesPath);
+
+        // Add use statement if it doesn't exist
         $useStatement = "use App\\Http\\Controllers\\{$this->entityName}Controller;";
-        
-        // Check if the use statement already exists
-        if (!str_contains($content, $useStatement)) {
+        if (!str_contains($routes, $useStatement)) {
             // Find the last use statement and add after it
-            $lines = explode("\n", $content);
+            $lines = explode("\n", $routes);
             $newLines = [];
             $useAdded = false;
             
@@ -901,119 +778,88 @@ export default function Show({ auth, {$this->entityLower} }) {
                 }
             }
             
-            $content = implode("\n", $newLines);
+            $routes = implode("\n", $newLines);
         }
-        
-        // Add the route inside the auth middleware group
-        $routeContent = "\n        // {$this->entityName} routes\n        Route::resource('{$this->entityPluralLower}', {$this->entityName}Controller::class);\n";
-        
-        // Find the auth middleware group and add the route
-        $pattern = '/(Route::middleware\(\'auth\'\)->group\(function \(\) \{)(.*?)(\}\);)/s';
-        $replacement = '$1$2' . $routeContent . '$3';
-        
-        $newContent = preg_replace($pattern, $replacement, $content);
-        
-        File::put($routesFile, $newContent);
-        
-        $this->info("Routes added to routes/web.php");
+
+        $newRoutes = "
+    Route::resource('{$this->entityPluralLower}', {$this->entityName}Controller::class);";
+
+        if (!str_contains($routes, $newRoutes)) {
+            // Find the auth middleware group and add the route inside it
+            $pattern = '/(Route::middleware\(\'auth\'\)->group\(function \(\) \{)(.*?)(\}\);)/s';
+            $replacement = '$1$2' . $newRoutes . '$3';
+            
+            $newContent = preg_replace($pattern, $replacement, $routes);
+            
+            if ($newContent !== $routes) {
+                File::put($routesPath, $newContent);
+                $this->info("Routes added to web.php");
+            } else {
+                // Fallback: add at the end
+                $routes .= $newRoutes;
+                File::put($routesPath, $routes);
+                $this->info("Routes added to web.php (fallback)");
+            }
+        }
     }
 
-    /**
-     * Update navigation in AuthenticatedLayout
-     */
     protected function updateNavigation()
     {
-        $layoutFile = resource_path('js/Layouts/AuthenticatedLayout.jsx');
-        
-        if (!File::exists($layoutFile)) {
-            $this->warn("AuthenticatedLayout.jsx not found, skipping navigation update");
-            return;
-        }
-
-        $content = File::get($layoutFile);
-        
-        // Check if navigation link already exists
-        $navLinkText = "route('{$this->entityPluralLower}.index')";
-        if (str_contains($content, $navLinkText)) {
-            $this->info("Navigation link already exists for {$this->entityName}");
-            return;
-        }
-        
-        // Add navigation link
-        $navLink = "                                <NavLink\n                                    href={route('{$this->entityPluralLower}.index')}\n                                    active={route().current('{$this->entityPluralLower}.*')}\n                                >\n                                    {$this->entityName}\n                                </NavLink>\n";
-        
-        // Find the navigation section and add the link before the closing div
-        // Try to find the navigation section and insert the link
-        $lines = explode("\n", $content);
-        $newLines = [];
-        $navSectionFound = false;
-        $navLinkAdded = false;
-        
-        foreach ($lines as $line) {
-            $newLines[] = $line;
+        $navigationPath = resource_path('js/Layouts/AuthenticatedLayout.jsx');
+        if (File::exists($navigationPath)) {
+            $navigation = File::get($navigationPath);
             
-            // Look for the navigation section opening
-            if (str_contains($line, 'className="hidden space-x-8 sm:-my-px sm:ml-10 sm:flex"') || 
-                str_contains($line, 'className="hidden space-x-8 sm:-my-px sm:ms-10 sm:flex"')) {
-                $navSectionFound = true;
-            }
+            // Check if navigation item already exists
+            $navItem = "                                <NavLink
+                                    href={route('{$this->entityPluralLower}.index')}
+                                    active={route().current('{$this->entityPluralLower}.*')}
+                                >
+                                    {$this->entityPlural}
+                                </NavLink>";
             
-            // If we're in the navigation section and find the closing div, add our link before it
-            if ($navSectionFound && str_contains($line, '</div>') && !$navLinkAdded) {
-                // Check if there are any NavLink elements before this closing div
-                $hasNavLinks = false;
-                foreach (array_slice($newLines, -10) as $prevLine) {
-                    if (str_contains($prevLine, 'NavLink')) {
-                        $hasNavLinks = true;
-                        break;
-                    }
+            $mobileNavItem = "                        <ResponsiveNavLink
+                            href={route('{$this->entityPluralLower}.index')}
+                            active={route().current('{$this->entityPluralLower}.*')}
+                        >
+                            {$this->entityPlural}
+                        </ResponsiveNavLink>";
+            
+            if (!str_contains($navigation, $navItem)) {
+                // Find the position to insert after Dashboard in desktop navigation
+                // Look for the closing tag of the Dashboard NavLink
+                $dashboardPattern = '/<NavLink\s+href=\{route\(\'dashboard\'\)\}[^>]*>\s*Dashboard\s*<\/NavLink>/s';
+                if (preg_match($dashboardPattern, $navigation, $matches, PREG_OFFSET_CAPTURE)) {
+                    $insertPosition = $matches[0][1] + strlen($matches[0][0]);
+                    $navigation = substr_replace($navigation, "\n" . $navItem, $insertPosition, 0);
                 }
                 
-                if ($hasNavLinks) {
-                    // Insert our navigation link before the closing div
-                    array_pop($newLines); // Remove the closing div
-                    $newLines[] = $navLink;
-                    $newLines[] = $line; // Add back the closing div
-                    $navLinkAdded = true;
+                // Find the position to insert after Dashboard in mobile navigation
+                // Look for the closing tag of the Dashboard ResponsiveNavLink
+                $mobileDashboardPattern = '/<ResponsiveNavLink\s+href=\{route\(\'dashboard\'\)\}[^>]*>\s*Dashboard\s*<\/ResponsiveNavLink>/s';
+                if (preg_match($mobileDashboardPattern, $navigation, $matches, PREG_OFFSET_CAPTURE)) {
+                    $insertPosition = $matches[0][1] + strlen($matches[0][0]);
+                    $navigation = substr_replace($navigation, "\n" . $mobileNavItem, $insertPosition, 0);
                 }
+                
+                File::put($navigationPath, $navigation);
+                $this->info("Navigation updated");
             }
-        }
-        
-        if ($navLinkAdded) {
-            $newContent = implode("\n", $newLines);
-            File::put($layoutFile, $newContent);
-            $this->info("Navigation updated in AuthenticatedLayout.jsx");
-        } else {
-            $this->warn("Could not find navigation section in AuthenticatedLayout.jsx");
-            $this->info("Please manually add the navigation link:");
-            $this->info($navLink);
         }
     }
 
-    /**
-     * Ask for fields using a select menu.
-     *
-     * @param array $availableFieldTypes
-     * @return string
-     */
-    protected function askWithMenu(array $availableFieldTypes)
+    protected function askWithMenu(array $options, $question)
     {
-        $this->info('Define the fields for your entity (e.g., name:string,price:decimal)');
-        $fields = [];
-
-        while (true) {
-            $fieldName = $this->ask('Enter the field name (or press Enter to finish):');
-            if (empty($fieldName)) {
-                break;
-            }
-
-            $fieldType = $this->choice('Select the field type:', $availableFieldTypes, 0);
-
-            $isRequired = $this->confirm('Is this field required?', false);
-
-            $fields[] = "{$fieldName}:{$fieldType}" . ($isRequired ? '|required' : '');
+        $this->info($question);
+        foreach ($options as $index => $option) {
+            $this->line(($index + 1) . ". {$option}");
         }
 
-        return implode(',', $fields);
+        while (true) {
+            $choice = $this->ask('Select option (1-' . count($options) . ')');
+            if (is_numeric($choice) && $choice >= 1 && $choice <= count($options)) {
+                return $options[$choice - 1];
+            }
+            $this->error('Invalid choice. Please try again.');
+        }
     }
 } 

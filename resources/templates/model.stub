@@ -8,5 +8,5 @@ class {{entity}} extends Model
 {
     protected $fillable = [
         {{fieldsFillable}},
-    ];
+    ];{{dateCasts}}
 }
