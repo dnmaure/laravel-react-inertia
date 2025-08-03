@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { format } from 'date-fns';
-import { Calendar as CalendarIcon } from 'lucide-react';
+import { format, addMonths, subMonths, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, startOfWeek, endOfWeek } from 'date-fns';
+import { Calendar as CalendarIcon, ChevronLeft, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Button } from '@/Components/ui/ui/button';
 
 const DatePicker = ({ 
   value, 
@@ -12,10 +13,9 @@ const DatePicker = ({
   error = null
 }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [selectedDate, setSelectedDate] = useState(value ? new Date(value) : null);
+  const [currentMonth, setCurrentMonth] = useState(value ? new Date(value) : new Date());
 
   const handleDateSelect = (date) => {
-    setSelectedDate(date);
     onChange(date);
     setIsOpen(false);
   };
@@ -26,73 +26,139 @@ const DatePicker = ({
     return format(date, 'MMM dd, yyyy');
   };
 
-  const generateDateOptions = () => {
-    const dates = [];
-    const today = new Date();
-    for (let i = 0; i < 365; i++) {
-      const date = new Date(today);
-      date.setDate(today.getDate() + i);
-      dates.push(date);
-    }
-    return dates;
+  const goToPreviousMonth = () => {
+    setCurrentMonth(subMonths(currentMonth, 1));
+  };
+
+  const goToNextMonth = () => {
+    setCurrentMonth(addMonths(currentMonth, 1));
+  };
+
+  const goToToday = () => {
+    setCurrentMonth(new Date());
+  };
+
+  const generateCalendarDays = () => {
+    const monthStart = startOfMonth(currentMonth);
+    const monthEnd = endOfMonth(currentMonth);
+    const calendarStart = startOfWeek(monthStart);
+    const calendarEnd = endOfWeek(monthEnd);
+
+    return eachDayOfInterval({ start: calendarStart, end: calendarEnd });
+  };
+
+  const isToday = (date) => {
+    return isSameDay(date, new Date());
+  };
+
+  const isSelected = (date) => {
+    return value && isSameDay(date, new Date(value));
+  };
+
+  const isCurrentMonth = (date) => {
+    return isSameMonth(date, currentMonth);
   };
 
   return (
     <div className={cn("relative", className)}>
-      <div
+      <Button
+        variant="outline"
         className={cn(
-          "flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
+          "w-full justify-start text-left font-normal",
+          !value && "text-muted-foreground",
           error && "border-red-500 focus:ring-red-500",
-          isOpen && "ring-2 ring-ring ring-offset-2"
+          disabled && "opacity-50 cursor-not-allowed"
         )}
+        disabled={disabled}
         onClick={() => !disabled && setIsOpen(!isOpen)}
       >
-        <div className="flex items-center gap-2">
-          <CalendarIcon className="h-4 w-4" />
-          <span className={cn(!value && "text-muted-foreground")}>
-            {formatDisplayValue() || placeholder}
-          </span>
-        </div>
-      </div>
+        <CalendarIcon className="mr-2 h-4 w-4" />
+        {formatDisplayValue() || placeholder}
+      </Button>
 
       {error && (
         <p className="mt-1 text-sm text-red-500">{error}</p>
       )}
 
       {isOpen && !disabled && (
-        <div className="absolute top-full left-0 z-50 mt-1 w-64 rounded-md border bg-popover p-4 text-popover-foreground shadow-md">
+        <div className="absolute top-full left-0 z-50 mt-1 w-80 rounded-md border bg-popover p-4 text-popover-foreground shadow-md">
           <div className="space-y-4">
-            <div>
-              <h3 className="text-sm font-medium mb-2">Select Date</h3>
-              <div className="grid grid-cols-7 gap-1 max-h-48 overflow-y-auto">
-                {generateDateOptions().map((date, index) => (
-                  <button
-                    key={index}
-                    className={cn(
-                      "h-8 w-full rounded text-xs hover:bg-accent hover:text-accent-foreground",
-                      selectedDate && format(selectedDate, 'yyyy-MM-dd') === format(date, 'yyyy-MM-dd') && "bg-primary text-primary-foreground"
-                    )}
-                    onClick={() => handleDateSelect(date)}
-                  >
-                    {format(date, 'dd')}
-                  </button>
-                ))}
+            {/* Header with month/year and navigation */}
+            <div className="flex items-center justify-between">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={goToPreviousMonth}
+                className="h-8 w-8 p-0"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <div className="text-center">
+                <div className="text-sm font-medium">
+                  {format(currentMonth, 'MMMM yyyy')}
+                </div>
               </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={goToNextMonth}
+                className="h-8 w-8 p-0"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
             </div>
 
-            <div className="flex justify-end gap-2 pt-2 border-t">
-              <button
-                className="px-3 py-1 text-xs rounded border hover:bg-accent"
-                onClick={() => setIsOpen(false)}
+            {/* Today button */}
+            <div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={goToToday}
+                className="w-full text-xs"
               >
-                Cancel
-              </button>
-              <button
-                className="px-3 py-1 text-xs rounded bg-primary text-primary-foreground hover:bg-primary/90"
+                Today
+              </Button>
+            </div>
+
+            {/* Calendar grid */}
+            <div className="grid grid-cols-7 gap-1">
+              {/* Day headers */}
+              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
+                <div key={day} className="text-center text-xs font-medium text-muted-foreground p-1">
+                  {day}
+                </div>
+              ))}
+
+              {/* Calendar days */}
+              {generateCalendarDays().map((day, index) => (
+                <Button
+                  key={index}
+                  variant="ghost"
+                  size="sm"
+                  className={cn(
+                    "h-8 w-8 p-0 text-xs",
+                    !isCurrentMonth(day) && "text-muted-foreground opacity-50",
+                    isToday(day) && "bg-accent text-accent-foreground",
+                    isSelected(day) && "bg-primary text-primary-foreground hover:bg-primary",
+                    !isSelected(day) && !isToday(day) && "hover:bg-accent hover:text-accent-foreground"
+                  )}
+                  onClick={() => handleDateSelect(day)}
+                >
+                  {format(day, 'd')}
+                </Button>
+              ))}
+            </div>
+
+            {/* Close button */}
+            <div className="flex justify-end pt-2 border-t">
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={() => setIsOpen(false)}
+                className="text-xs"
               >
-                Done
-              </button>
+                Close
+              </Button>
             </div>
           </div>
         </div>
