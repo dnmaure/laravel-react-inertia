@@ -313,51 +313,48 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 export default function Index({ auth, {$this->entityPluralLower} }) {
     return (
         <AuthenticatedLayout
-            user={auth.user}
-            header={<h2 className=\"font-semibold text-xl text-gray-800 leading-tight\">{$this->entityPlural}</h2>}
+            header=\"{$this->entityPlural}\"
+            breadcrumbs={[
+                { label: 'Dashboard', href: route('dashboard') },
+                { label: '{$this->entityPlural}', href: route('{$this->entityPluralLower}.index') }
+            ]}
         >
             <Head title=\"{$this->entityPlural}\" />
 
-            <div className=\"py-12\">
-                <div className=\"max-w-7xl mx-auto sm:px-6 lg:px-8\">
-                    <div className=\"bg-white overflow-hidden shadow-sm sm:rounded-lg\">
-                        <div className=\"p-6 text-gray-900\">
-                            <div className=\"flex justify-between items-center mb-6\">
-                                <h3 className=\"text-lg font-semibold\">{$this->entityName} Management</h3>
-                                <Link href={route('{$this->entityPluralLower}.create')} className=\"bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded\">
-                                    Add {$this->entityName}
-                                </Link>
-                            </div>
+            <div className=\"bg-white shadow-sm rounded-lg p-6\">
+                <div className=\"flex justify-between items-center mb-6\">
+                    <h3 className=\"text-lg font-semibold\">{$this->entityName} Management</h3>
+                    <Link href={route('{$this->entityPluralLower}.create')} className=\"bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded\">
+                        Add {$this->entityName}
+                    </Link>
+                </div>
 
-                            <div className=\"overflow-x-auto\">
-                                <table className=\"min-w-full divide-y divide-gray-200\">
-                                    <thead className=\"bg-gray-50\">
-                                        <tr>
-                                            {$tableHeaders}
-                                            <th className=\"px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider\">Actions</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className=\"bg-white divide-y divide-gray-200\">
-                                        {{$this->entityPluralLower}.data.map(({$this->entityLower}) => (
-                                            <tr key={{$this->entityLower}.id}>
-                                                {$tableCells}
-                                                <td className=\"px-6 py-4 whitespace-nowrap text-sm font-medium\">
-                                                    <div className=\"flex space-x-2\">
-                                                        <Link href={route('{$this->entityPluralLower}.show', {$this->entityLower}.id)} className=\"text-blue-600 hover:text-blue-900\">
-                                                            View
-                                                        </Link>
-                                                        <Link href={route('{$this->entityPluralLower}.edit', {$this->entityLower}.id)} className=\"text-indigo-600 hover:text-indigo-900\">
-                                                            Edit
-                                                        </Link>
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    </div>
+                <div className=\"overflow-x-auto\">
+                    <table className=\"min-w-full divide-y divide-gray-200\">
+                        <thead className=\"bg-gray-50\">
+                            <tr>
+                                {$tableHeaders}
+                                <th className=\"px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider\">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody className=\"bg-white divide-y divide-gray-200\">
+                            {{$this->entityPluralLower}.data.map(({$this->entityLower}) => (
+                                <tr key={{$this->entityLower}.id}>
+                                    {$tableCells}
+                                    <td className=\"px-6 py-4 whitespace-nowrap text-sm font-medium\">
+                                        <div className=\"flex space-x-2\">
+                                            <Link href={route('{$this->entityPluralLower}.show', {$this->entityLower}.id)} className=\"text-blue-600 hover:text-blue-900\">
+                                                View
+                                            </Link>
+                                            <Link href={route('{$this->entityPluralLower}.edit', {$this->entityLower}.id)} className=\"text-indigo-600 hover:text-indigo-900\">
+                                                Edit
+                                            </Link>
+                                        </div>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </AuthenticatedLayout>
@@ -466,31 +463,29 @@ export default function Create({ auth, errors }) {
 
     return (
         <AuthenticatedLayout
-            user={auth.user}
-            header={<h2 className=\"font-semibold text-xl text-gray-800 leading-tight\">Create {$this->entityName}</h2>}
+            header=\"Create {$this->entityName}\"
+            breadcrumbs={[
+                { label: 'Dashboard', href: route('dashboard') },
+                { label: '{$this->entityPlural}', href: route('{$this->entityPluralLower}.index') },
+                { label: 'Create {$this->entityName}', href: route('{$this->entityPluralLower}.create') }
+            ]}
         >
             <Head title=\"Create {$this->entityName}\" />
 
-            <div className=\"py-12\">
-                <div className=\"max-w-7xl mx-auto sm:px-6 lg:px-8\">
-                    <div className=\"bg-white overflow-hidden shadow-sm sm:rounded-lg\">
-                        <div className=\"p-6 text-gray-900\">
-                            <form onSubmit={submit}>
+            <div className=\"bg-white shadow-sm rounded-lg p-6\">
+                <form onSubmit={submit}>
                                 {$formFields}
 
-                                <div className=\"flex items-center justify-between\">
-                                    <button
-                                        type=\"submit\"
-                                        disabled={processing}
-                                        className=\"bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline\"
-                                    >
-                                        Create {$this->entityName}
-                                    </button>
-                                </div>
-                            </form>
-                        </div>
+                    <div className=\"flex items-center justify-between\">
+                        <button
+                            type=\"submit\"
+                            disabled={processing}
+                            className=\"bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline\"
+                        >
+                            Create {$this->entityName}
+                        </button>
                     </div>
-                </div>
+                </form>
             </div>
         </AuthenticatedLayout>
     );
@@ -598,31 +593,29 @@ export default function Edit({ auth, {$this->entityLower}, errors }) {
 
     return (
         <AuthenticatedLayout
-            user={auth.user}
-            header={<h2 className=\"font-semibold text-xl text-gray-800 leading-tight\">Edit {$this->entityName}</h2>}
+            header=\"Edit {$this->entityName}\"
+            breadcrumbs={[
+                { label: 'Dashboard', href: route('dashboard') },
+                { label: '{$this->entityPlural}', href: route('{$this->entityPluralLower}.index') },
+                { label: 'Edit {$this->entityName}', href: route('{$this->entityPluralLower}.edit', {$this->entityLower}.id) }
+            ]}
         >
             <Head title=\"Edit {$this->entityName}\" />
 
-            <div className=\"py-12\">
-                <div className=\"max-w-7xl mx-auto sm:px-6 lg:px-8\">
-                    <div className=\"bg-white overflow-hidden shadow-sm sm:rounded-lg\">
-                        <div className=\"p-6 text-gray-900\">
-                            <form onSubmit={submit}>
-                                {$formFields}
+            <div className=\"bg-white shadow-sm rounded-lg p-6\">
+                <form onSubmit={submit}>
+                    {$formFields}
 
-                                <div className=\"flex items-center justify-between\">
-                                    <button
-                                        type=\"submit\"
-                                        disabled={processing}
-                                        className=\"bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline\"
-                                    >
-                                        Update {$this->entityName}
-                                    </button>
-                                </div>
-                            </form>
-                        </div>
+                    <div className=\"flex items-center justify-between\">
+                        <button
+                            type=\"submit\"
+                            disabled={processing}
+                            className=\"bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline\"
+                        >
+                            Update {$this->entityName}
+                        </button>
                     </div>
-                </div>
+                </form>
             </div>
         </AuthenticatedLayout>
     );
@@ -695,39 +688,37 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 export default function Show({ auth, {$this->entityLower} }) {
     return (
         <AuthenticatedLayout
-            user={auth.user}
-            header={<h2 className=\"font-semibold text-xl text-gray-800 leading-tight\">{$this->entityName} Details</h2>}
+            header=\"{$this->entityName} Details\"
+            breadcrumbs={[
+                { label: 'Dashboard', href: route('dashboard') },
+                { label: '{$this->entityPlural}', href: route('{$this->entityPluralLower}.index') },
+                { label: '{$this->entityName} Details', href: route('{$this->entityPluralLower}.show', {$this->entityLower}.id) }
+            ]}
         >
             <Head title=\"{$this->entityName} Details\" />
 
-            <div className=\"py-12\">
-                <div className=\"max-w-7xl mx-auto sm:px-6 lg:px-8\">
-                    <div className=\"bg-white overflow-hidden shadow-sm sm:rounded-lg\">
-                        <div className=\"p-6 text-gray-900\">
-                            <div className=\"mb-6\">
-                                <h3 className=\"text-lg font-semibold mb-4\">{$this->entityName} Information</h3>
-                                
-                                <div className=\"grid grid-cols-1 md:grid-cols-2 gap-4\">
-                                    {$showFields}
-                                </div>
-                            </div>
-
-                            <div className=\"flex space-x-4\">
-                                <Link
-                                    href={route('{$this->entityPluralLower}.edit', {$this->entityLower}.id)}
-                                    className=\"bg-indigo-500 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded\"
-                                >
-                                    Edit {$this->entityName}
-                                </Link>
-                                <Link
-                                    href={route('{$this->entityPluralLower}.index')}
-                                    className=\"bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded\"
-                                >
-                                    Back to List
-                                </Link>
-                            </div>
-                        </div>
+            <div className=\"bg-white shadow-sm rounded-lg p-6\">
+                <div className=\"mb-6\">
+                    <h3 className=\"text-lg font-semibold mb-4\">{$this->entityName} Information</h3>
+                    
+                    <div className=\"grid grid-cols-1 md:grid-cols-2 gap-4\">
+                        {$showFields}
                     </div>
+                </div>
+
+                <div className=\"flex space-x-4\">
+                    <Link
+                        href={route('{$this->entityPluralLower}.edit', {$this->entityLower}.id)}
+                        className=\"bg-indigo-500 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded\"
+                    >
+                        Edit {$this->entityName}
+                    </Link>
+                    <Link
+                        href={route('{$this->entityPluralLower}.index')}
+                        className=\"bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded\"
+                    >
+                        Back to List
+                    </Link>
                 </div>
             </div>
         </AuthenticatedLayout>
@@ -805,44 +796,34 @@ export default function Show({ auth, {$this->entityLower} }) {
 
     protected function updateNavigation()
     {
-        $navigationPath = resource_path('js/Layouts/AuthenticatedLayout.jsx');
-        if (File::exists($navigationPath)) {
-            $navigation = File::get($navigationPath);
+        $sidebarPath = resource_path('js/Components/AppSidebar.jsx');
+        if (File::exists($sidebarPath)) {
+            $sidebar = File::get($sidebarPath);
             
             // Check if navigation item already exists
-            $navItem = "                                <NavLink
-                                    href={route('{$this->entityPluralLower}.index')}
-                                    active={route().current('{$this->entityPluralLower}.*')}
-                                >
-                                    {$this->entityPlural}
-                                </NavLink>";
+            $sidebarItem = "              <SidebarMenuItem>
+                <SidebarMenuButton asChild>
+                  <Link href={route('{$this->entityPluralLower}.index')} className=\"flex items-center gap-2\">
+                    <FolderOpen className=\"h-4 w-4\" />
+                    {$this->entityPlural}
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>";
             
-            $mobileNavItem = "                        <ResponsiveNavLink
-                            href={route('{$this->entityPluralLower}.index')}
-                            active={route().current('{$this->entityPluralLower}.*')}
-                        >
-                            {$this->entityPlural}
-                        </ResponsiveNavLink>";
-            
-            if (!str_contains($navigation, $navItem)) {
-                // Find the position to insert after Dashboard in desktop navigation
-                // Look for the closing tag of the Dashboard NavLink
-                $dashboardPattern = '/<NavLink\s+href=\{route\(\'dashboard\'\)\}[^>]*>\s*Dashboard\s*<\/NavLink>/s';
-                if (preg_match($dashboardPattern, $navigation, $matches, PREG_OFFSET_CAPTURE)) {
-                    $insertPosition = $matches[0][1] + strlen($matches[0][0]);
-                    $navigation = substr_replace($navigation, "\n" . $navItem, $insertPosition, 0);
+            if (!str_contains($sidebar, $sidebarItem)) {
+                // Find the position to insert in the Management section
+                $managementPattern = '/<SidebarGroupLabel>Management<\/SidebarGroupLabel>/';
+                if (preg_match($managementPattern, $sidebar, $matches, PREG_OFFSET_CAPTURE)) {
+                    // Find the last SidebarMenuItem before the closing SidebarMenu tag
+                    $lastItemPattern = '/<SidebarMenuItem>.*?<\/SidebarMenuItem>\s*<\/SidebarMenu>/s';
+                    if (preg_match($lastItemPattern, $sidebar, $lastItemMatches, PREG_OFFSET_CAPTURE, $matches[0][1])) {
+                        $insertPosition = $lastItemMatches[0][1] + strpos($lastItemMatches[0][0], '</SidebarMenuItem>') + strlen('</SidebarMenuItem>');
+                        $sidebar = substr_replace($sidebar, "\n" . $sidebarItem, $insertPosition, 0);
+                    }
                 }
                 
-                // Find the position to insert after Dashboard in mobile navigation
-                // Look for the closing tag of the Dashboard ResponsiveNavLink
-                $mobileDashboardPattern = '/<ResponsiveNavLink\s+href=\{route\(\'dashboard\'\)\}[^>]*>\s*Dashboard\s*<\/ResponsiveNavLink>/s';
-                if (preg_match($mobileDashboardPattern, $navigation, $matches, PREG_OFFSET_CAPTURE)) {
-                    $insertPosition = $matches[0][1] + strlen($matches[0][0]);
-                    $navigation = substr_replace($navigation, "\n" . $mobileNavItem, $insertPosition, 0);
-                }
-                
-                File::put($navigationPath, $navigation);
-                $this->info("Navigation updated");
+                File::put($sidebarPath, $sidebar);
+                $this->info("Sidebar navigation updated");
             }
         }
     }
