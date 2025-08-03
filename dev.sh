@@ -99,6 +99,9 @@ case "$1" in
         ;;
     dev)
         echo -e "${YELLOW}⚡ Starting React development server...${NC}"
+        # Start the node service in detached mode for development
+        docker-compose up -d node
+        # Run the dev server
         run_npm run dev
         ;;
     fresh)

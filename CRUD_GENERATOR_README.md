@@ -11,6 +11,7 @@ This enhanced CRUD generator creates complete CRUD scaffolding for Laravel React
 - **Route Generation** - Automatically adds resource routes
 - **Navigation Updates** - Updates the authenticated layout navigation
 - **File Upload Support** - Handles file uploads with proper storage
+- **Date Picker Components** - Modern date picker using shadcn/ui components
 - **Multiple Field Types** - Supports string, integer, decimal, boolean, date, text, longtext, email, file, and url
 
 ## Available Field Types
@@ -21,7 +22,7 @@ This enhanced CRUD generator creates complete CRUD scaffolding for Laravel React
 | `integer` | Whole numbers | `INTEGER` | integer, min:0 |
 | `decimal` | Decimal numbers | `DECIMAL(10,2)` | numeric, min:0 |
 | `boolean` | True/false values | `BOOLEAN` | boolean |
-| `date` | Date values | `DATE` | date |
+| `date` | Date values | `DATE` | date (with modern DatePicker component) |
 | `text` | Medium text | `TEXT` | string |
 | `longtext` | Long text content | `LONGTEXT` | string |
 | `email` | Email addresses | `VARCHAR(255)` | email |
@@ -83,6 +84,37 @@ php artisan create:crud Course
 - `instructor_id:integer|required` - Foreign key to users table
 - `is_featured:boolean` - Featured course flag
 - `published_at:date` - Publication date
+
+## Date Picker Component
+
+The CRUD generator now includes a modern date picker component built with shadcn/ui styling. For fields of type `date`, the generator automatically uses the `DatePicker` component instead of the basic HTML date input.
+
+### Features:
+- **Modern UI** - Clean, accessible design following shadcn/ui patterns
+- **Date Selection** - Calendar-style date picker with 365 days of options
+- **Error Handling** - Displays validation errors with proper styling
+- **Responsive** - Works well on desktop and mobile devices
+- **Accessible** - Proper ARIA labels and keyboard navigation
+
+### Usage in Generated Components:
+```jsx
+<DatePicker
+    value={data.start_date}
+    onChange={(date) => setData('start_date', date)}
+    placeholder="Select start_date"
+    error={errors.start_date}
+/>
+```
+
+### Dependencies:
+The DatePicker component requires the following packages (automatically installed):
+- `@radix-ui/react-popover`
+- `@radix-ui/react-slot`
+- `class-variance-authority`
+- `clsx`
+- `tailwind-merge`
+- `lucide-react`
+- `date-fns`
 
 ## Generated Files
 

@@ -156,6 +156,23 @@ class CreateCrud extends Command
             return "'{$field['name']}'";
         }, $this->fields));
 
+        // Generate casts for date fields
+        $dateFields = array_filter($this->fields, function ($field) {
+            return $field['type'] === 'date';
+        });
+        
+        $casts = '';
+        if (!empty($dateFields)) {
+            $castFields = implode(",\n        ", array_map(function ($field) {
+                return "'{$field['name']}' => 'date'";
+            }, $dateFields));
+            $casts = "
+
+    protected \$casts = [
+        {$castFields},
+    ];";
+        }
+
         $modelContent = "<?php
 
 namespace App\Models;
@@ -166,7 +183,7 @@ class {$this->entityName} extends Model
 {
     protected \$fillable = [
         {$fillableFields},
-    ];
+    ];{$casts}
 }";
 
         $modelPath = app_path("Models/{$this->entityName}.php");
@@ -297,18 +314,26 @@ return new class extends Migration
             return "'{$field['name']}' => '" . implode('|', $rules) . "'";
         }, $this->fields));
 
-        // Generate file upload handling code
+                // Generate file upload handling code
         $fileUploadCode = '';
+        $dateFormatCode = '';
         foreach ($this->fields as $field) {
             if ($field['type'] === 'file') {
                 $fileUploadCode .= "
-        // Handle {$field['name']} file upload
-        if (\$request->hasFile('{$field['name']}')) {
-            \$file = \$request->file('{$field['name']}');
-            \$fileName = time() . '_' . \$file->getClientOriginalName();
-            \$file->storeAs('{$this->entityPluralLower}', \$fileName, 'public');
-            \$data['{$field['name']}'] = \$fileName;
-        }";
+                // Handle {$field['name']} file upload
+                if (\$request->hasFile('{$field['name']}')) {
+                    \$file = \$request->file('{$field['name']}');
+                    \$fileName = time() . '_' . \$file->getClientOriginalName();
+                    \$file->storeAs('{$this->entityPluralLower}', \$fileName, 'public');
+                    \$data['{$field['name']}'] = \$fileName;
+                }";
+            }
+            if ($field['type'] === 'date') {
+                $dateFormatCode .= "
+                // Format {$field['name']} to Y-m-d format for database
+                if (isset(\$data['{$field['name']}']) && \$data['{$field['name']}']) {
+                    \$data['{$field['name']}'] = date('Y-m-d', strtotime(\$data['{$field['name']}']));
+                }";
             }
         }
 
@@ -342,7 +367,7 @@ class {$this->entityName}Controller extends Controller
             {$validationRules},
         ]);
 
-        \$data = \$request->all();{$fileUploadCode}
+        \$data = \$request->all();{$fileUploadCode}{$dateFormatCode}
 
         {$this->entityName}::create(\$data);
 
@@ -370,7 +395,7 @@ class {$this->entityName}Controller extends Controller
             {$validationRules},
         ]);
 
-        \$data = \$request->all();{$fileUploadCode}
+        \$data = \$request->all();{$fileUploadCode}{$dateFormatCode}
 
         \${$this->entityLower}->update(\$data);
 
@@ -519,6 +544,18 @@ export default function Index({ auth, {$this->entityPluralLower} }) {
                                     />
                                     {errors.{$field['name']} && <div className=\"text-red-500 text-xs\">{errors.{$field['name']}}</div>}
                                 </div>";
+            } elseif ($field['type'] === 'date') {
+                return "<div className=\"mb-4\">
+                                    <label className=\"block text-gray-700 text-sm font-bold mb-2\">
+                                        {$field['name']}
+                                    </label>
+                                    <DatePicker
+                                        value={data.{$field['name']}}
+                                        onChange={(date) => setData('{$field['name']}', date)}
+                                        placeholder=\"Select {$field['name']}\"
+                                        error={errors.{$field['name']}}
+                                    />
+                                </div>";
             } else {
                 return "<div className=\"mb-4\">
                                     <label className=\"block text-gray-700 text-sm font-bold mb-2\">
@@ -538,12 +575,15 @@ export default function Index({ auth, {$this->entityPluralLower} }) {
         $formData = implode(",\n        ", array_map(function ($field) {
             if ($field['type'] === 'file') {
                 return "{$field['name']}: null";
+            } elseif ($field['type'] === 'date') {
+                return "{$field['name']}: null";
             }
             return "{$field['name']}: ''";
         }, $this->fields));
 
         $createContent = "import { Head, useForm } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import DatePicker from '@/Components/ui/DatePicker';
 
 export default function Create({ auth, errors }) {
     const { data, setData, post, processing } = useForm({
@@ -624,6 +664,18 @@ export default function Create({ auth, errors }) {
                                     />
                                     {errors.{$field['name']} && <div className=\"text-red-500 text-xs\">{errors.{$field['name']}}</div>}
                                 </div>";
+            } elseif ($field['type'] === 'date') {
+                return "<div className=\"mb-4\">
+                                    <label className=\"block text-gray-700 text-sm font-bold mb-2\">
+                                        {$field['name']}
+                                    </label>
+                                    <DatePicker
+                                        value={data.{$field['name']}}
+                                        onChange={(date) => setData('{$field['name']}', date)}
+                                        placeholder=\"Select {$field['name']}\"
+                                        error={errors.{$field['name']}}
+                                    />
+                                </div>";
             } else {
                 return "<div className=\"mb-4\">
                                     <label className=\"block text-gray-700 text-sm font-bold mb-2\">
@@ -643,12 +695,15 @@ export default function Create({ auth, errors }) {
         $formData = implode(",\n        ", array_map(function ($field) {
             if ($field['type'] === 'file') {
                 return "{$field['name']}: null";
+            } elseif ($field['type'] === 'date') {
+                return "{$field['name']}: {$this->entityLower}.{$field['name']} || null";
             }
             return "{$field['name']}: {$this->entityLower}.{$field['name']} || ''";
         }, $this->fields));
 
         $editContent = "import { Head, useForm } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import DatePicker from '@/Components/ui/DatePicker';
 
 export default function Edit({ auth, {$this->entityLower}, errors }) {
     const { data, setData, put, processing } = useForm({
