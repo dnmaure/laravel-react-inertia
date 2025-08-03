@@ -131,10 +131,12 @@ class CreateCrud extends Command
         $template = File::get(resource_path('templates/model.stub'));
         $content = str_replace([
             '{{entity}}',
+            '{{entityPluralLower}}',
             '{{fieldsFillable}}',
             '{{dateCasts}}'
         ], [
             $this->entityName,
+            $this->entityPluralLower,
             $fillableFields,
             $dateCasts
         ], $template);
@@ -431,6 +433,8 @@ export default function Index({ auth, {$this->entityPluralLower} }) {
                 return "{$field['name']}: null";
             } elseif ($field['type'] === 'date') {
                 return "{$field['name']}: null";
+            } elseif ($field['type'] === 'boolean') {
+                return "{$field['name']}: false";
             }
             return "{$field['name']}: ''";
         }, $this->fields));
@@ -440,11 +444,18 @@ export default function Index({ auth, {$this->entityPluralLower} }) {
             return $field['type'] === 'date';
         }));
 
+        // Check if we have boolean fields for conditional imports
+        $hasBooleanFields = !empty(array_filter($this->fields, function ($field) {
+            return $field['type'] === 'boolean';
+        }));
+
         $datePickerImport = $hasDateFields ? "import DatePicker from '@/Components/ui/DatePicker';" : "";
+        $switchImport = $hasBooleanFields ? "import { Switch } from '@/Components/ui/ui/switch';" : "";
 
         $createContent = "import { Head, useForm } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 {$datePickerImport}
+{$switchImport}
 
 export default function Create({ auth, errors }) {
     const { data, setData, post, processing } = useForm({
@@ -742,6 +753,8 @@ export default function Show({ auth, {$this->entityLower} }) {
                 return 'number';
             case 'url':
                 return 'url';
+            case 'boolean':
+                return 'checkbox';
             default:
                 return 'text';
         }
@@ -811,14 +824,33 @@ export default function Show({ auth, {$this->entityLower} }) {
               </SidebarMenuItem>";
             
             if (!str_contains($sidebar, $sidebarItem)) {
-                // Find the position to insert in the Management section
-                $managementPattern = '/<SidebarGroupLabel>Management<\/SidebarGroupLabel>/';
-                if (preg_match($managementPattern, $sidebar, $matches, PREG_OFFSET_CAPTURE)) {
-                    // Find the last SidebarMenuItem before the closing SidebarMenu tag
-                    $lastItemPattern = '/<SidebarMenuItem>.*?<\/SidebarMenuItem>\s*<\/SidebarMenu>/s';
-                    if (preg_match($lastItemPattern, $sidebar, $lastItemMatches, PREG_OFFSET_CAPTURE, $matches[0][1])) {
-                        $insertPosition = $lastItemMatches[0][1] + strpos($lastItemMatches[0][0], '</SidebarMenuItem>') + strlen('</SidebarMenuItem>');
-                        $sidebar = substr_replace($sidebar, "\n" . $sidebarItem, $insertPosition, 0);
+                // Check if Management section exists, if not create it
+                if (!str_contains($sidebar, '<SidebarGroupLabel>Management</SidebarGroupLabel>')) {
+                    // Add Management section after the Main section
+                    $managementSection = "
+        <SidebarGroup>
+          <SidebarGroupLabel>Management</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+{$sidebarItem}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>";
+                    
+                    // Find the position after the Main section and before the Separator
+                    $pattern = '/(<SidebarGroup>\s*<SidebarGroupLabel>Main<\/SidebarGroupLabel>.*?<\/SidebarGroup>\s*)\n\s*<Separator/s';
+                    $replacement = '$1' . $managementSection . "\n        <Separator";
+                    $sidebar = preg_replace($pattern, $replacement, $sidebar);
+                } else {
+                    // Management section exists, add to it
+                    $managementPattern = '/<SidebarGroupLabel>Management<\/SidebarGroupLabel>/';
+                    if (preg_match($managementPattern, $sidebar, $matches, PREG_OFFSET_CAPTURE)) {
+                        // Find the last SidebarMenuItem before the closing SidebarMenu tag
+                        $lastItemPattern = '/<SidebarMenuItem>.*?<\/SidebarMenuItem>\s*<\/SidebarMenu>/s';
+                        if (preg_match($lastItemPattern, $sidebar, $lastItemMatches, PREG_OFFSET_CAPTURE, $matches[0][1])) {
+                            $insertPosition = $lastItemMatches[0][1] + strpos($lastItemMatches[0][0], '</SidebarMenuItem>') + strlen('</SidebarMenuItem>');
+                            $sidebar = substr_replace($sidebar, "\n" . $sidebarItem, $insertPosition, 0);
+                        }
                     }
                 }
                 

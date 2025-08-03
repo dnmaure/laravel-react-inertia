@@ -54,7 +54,14 @@ export function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+
+
+
+
+
         <Separator className="my-2" />
+
+
         
       </SidebarContent>
       <SidebarFooter className="border-t px-6 py-4">

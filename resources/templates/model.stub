@@ -6,6 +6,8 @@ use Illuminate\Database\Eloquent\Model;
 
 class {{entity}} extends Model
 {
+    protected $table = '{{entityPluralLower}}';
+    
     protected $fillable = [
         {{fieldsFillable}},
     ];{{dateCasts}}
