@@ -1,5 +1,6 @@
 import { Head, useForm } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import { showToast } from '@/lib/toast';
 {{datePickerImport}}
 {{switchImport}}
 {{checkboxImport}}
@@ -15,7 +16,10 @@ export default function Create({ auth, errors }) {
         post(route('{{entityPluralLower}}.store'), {
             preserveScroll: true,
             onSuccess: () => {
-                // Form will be reset automatically
+                showToast.success('{{entityName}} created successfully!');
+            },
+            onError: (errors) => {
+                showToast.error('Failed to create {{entityName}}. Please check the form and try again.');
             },
         });
     };

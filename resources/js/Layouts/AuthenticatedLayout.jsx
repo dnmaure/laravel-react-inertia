@@ -7,6 +7,7 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from '@/Components/ui/ui/sidebar'
+import { ToastProvider } from '@/Components/ui/toast'
 
 export default function AuthenticatedLayout({ header, children, breadcrumbs = [] }) {
   return (
@@ -26,6 +27,7 @@ export default function AuthenticatedLayout({ header, children, breadcrumbs = []
           {children}
         </div>
       </SidebarInset>
+      <ToastProvider />
     </SidebarProvider>
   )
 }
