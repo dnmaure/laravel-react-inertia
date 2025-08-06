@@ -85,6 +85,7 @@ export function AppSidebar() {
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
+
               <SidebarMenuItem>
                 <SidebarMenuButton asChild>
                   <Link href={route('logout')} method="post" as="button" className="flex items-center gap-2">

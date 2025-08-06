@@ -1,0 +1,26 @@
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700">{{fieldName}}</label>
+                            <div className="mt-1">
+                                {{{entityLower}}.{{fieldName}} ? (
+                                    <div>
+                                        {{{entityLower}}.{{fieldName}}.match(/\.(jpg|jpeg|png|gif|webp)$/i) ? (
+                                            <img 
+                                                src={`/storage/{{entityPluralLower}}/${{{entityLower}}.{{fieldName}}}`} 
+                                                alt="{{fieldName}}" 
+                                                className="max-w-xs rounded shadow-sm"
+                                            />
+                                        ) : (
+                                            <a 
+                                                href={`/storage/{{entityPluralLower}}/${{{entityLower}}.{{fieldName}}}`} 
+                                                download
+                                                className="text-blue-600 hover:text-blue-800 underline"
+                                            >
+                                                Download {{fieldName}}
+                                            </a>
+                                        )}
+                                    </div>
+                                ) : (
+                                    <p className="text-gray-500">No file uploaded</p>
+                                )}
+                            </div>
+                        </div> 

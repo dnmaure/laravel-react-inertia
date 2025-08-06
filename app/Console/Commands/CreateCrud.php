@@ -306,67 +306,38 @@ class CreateCrud extends Command
 
     protected function generateIndexComponent()
     {
-        $tableHeaders = implode("\n                                            ", array_map(function ($field) {
-            return "<th className=\"px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider\">{$field['name']}</th>";
+        $tableHeaders = implode("\n", array_map(function ($field) {
+            $template = File::get(resource_path('templates/table_header.stub'));
+            return str_replace('{{fieldName}}', $field['name'], $template);
         }, $this->fields));
 
-        $tableCells = implode("\n                                                ", array_map(function ($field) {
-            return "<td className=\"px-6 py-4 whitespace-nowrap text-sm text-gray-900\">\n                                                    {{$this->entityLower}.{$field['name']}}\n                                                </td>";
+        $tableCells = implode("\n", array_map(function ($field) {
+            $template = File::get(resource_path('templates/table_cell.stub'));
+            return str_replace([
+                '{{fieldName}}',
+                '{{entityLower}}'
+            ], [
+                $field['name'],
+                $this->entityLower
+            ], $template);
         }, $this->fields));
 
-        $indexContent = "import { Head, Link } from '@inertiajs/react';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-
-export default function Index({ auth, {$this->entityPluralLower} }) {
-    return (
-        <AuthenticatedLayout
-            header=\"{$this->entityPlural}\"
-            breadcrumbs={[
-                { label: 'Dashboard', href: route('dashboard') },
-                { label: '{$this->entityPlural}', href: route('{$this->entityPluralLower}.index') }
-            ]}
-        >
-            <Head title=\"{$this->entityPlural}\" />
-
-            <div className=\"bg-white shadow-sm rounded-lg p-6\">
-                <div className=\"flex justify-between items-center mb-6\">
-                    <h3 className=\"text-lg font-semibold\">{$this->entityName} Management</h3>
-                    <Link href={route('{$this->entityPluralLower}.create')} className=\"bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded\">
-                        Add {$this->entityName}
-                    </Link>
-                </div>
-
-                <div className=\"overflow-x-auto\">
-                    <table className=\"min-w-full divide-y divide-gray-200\">
-                        <thead className=\"bg-gray-50\">
-                            <tr>
-                                {$tableHeaders}
-                                <th className=\"px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider\">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody className=\"bg-white divide-y divide-gray-200\">
-                            {{$this->entityPluralLower}.data.map(({$this->entityLower}) => (
-                                <tr key={{$this->entityLower}.id}>
-                                    {$tableCells}
-                                    <td className=\"px-6 py-4 whitespace-nowrap text-sm font-medium\">
-                                        <div className=\"flex space-x-2\">
-                                            <Link href={route('{$this->entityPluralLower}.show', {$this->entityLower}.id)} className=\"text-blue-600 hover:text-blue-900\">
-                                                View
-                                            </Link>
-                                            <Link href={route('{$this->entityPluralLower}.edit', {$this->entityLower}.id)} className=\"text-indigo-600 hover:text-indigo-900\">
-                                                Edit
-                                            </Link>
-                                        </div>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </AuthenticatedLayout>
-    );
-}";
+        $template = File::get(resource_path('templates/react_index.stub'));
+        $indexContent = str_replace([
+            '{{entityName}}',
+            '{{entityPlural}}',
+            '{{entityPluralLower}}',
+            '{{entityLower}}',
+            '{{tableHeaders}}',
+            '{{tableCells}}'
+        ], [
+            $this->entityName,
+            $this->entityPlural,
+            $this->entityPluralLower,
+            $this->entityLower,
+            $tableHeaders,
+            $tableCells
+        ], $template);
 
         $indexPath = resource_path("js/Pages/{$this->entityPlural}/Index.jsx");
         File::put($indexPath, $indexContent);
@@ -579,102 +550,62 @@ export default function Index({ auth, {$this->entityPluralLower} }) {
 
     protected function generateShowComponent()
     {
-        $showFields = implode("\n                                    ", array_map(function ($field) {
+        $showFields = implode("\n", array_map(function ($field) {
             if ($field['type'] === 'file') {
-                return "<div>
-                                        <label className=\"block text-sm font-medium text-gray-700\">{$field['name']}</label>
-                                        <div className=\"mt-1\">
-                                            {{$this->entityLower}.{$field['name']} ? (
-                                                <div>
-                                                    {{$this->entityLower}.{$field['name']}.match(/\\.(jpg|jpeg|png|gif|webp)$/i) ? (
-                                                        <img 
-                                                            src={\"/storage/{$this->entityPluralLower}/\" + {$this->entityLower}.{$field['name']}} 
-                                                            alt=\"{$field['name']}\" 
-                                                            className=\"max-w-xs rounded shadow-sm\"
-                                                        />
-                                                    ) : (
-                                                        <a 
-                                                            href={\"/storage/{$this->entityPluralLower}/\" + {$this->entityLower}.{$field['name']}} 
-                                                            download
-                                                            className=\"text-blue-600 hover:text-blue-800 underline\"
-                                                        >
-                                                            Download {$field['name']}
-                                                        </a>
-                                                    )}
-                                                </div>
-                                            ) : (
-                                                <p className=\"text-gray-500\">No file uploaded</p>
-                                            )}
-                                        </div>
-                                    </div>";
+                $template = File::get(resource_path('templates/show_field_file.stub'));
+                return str_replace([
+                    '{{fieldName}}',
+                    '{{entityLower}}',
+                    '{{entityPluralLower}}'
+                ], [
+                    $field['name'],
+                    $this->entityLower,
+                    $this->entityPluralLower
+                ], $template);
             } elseif ($field['type'] === 'date') {
-                return "<div>
-                                        <label className=\"block text-sm font-medium text-gray-700\">{$field['name']}</label>
-                                        <p className=\"mt-1 text-sm text-gray-900\">
-                                            {{$this->entityLower}.{$field['name']} ? new Date({$this->entityLower}.{$field['name']}).toLocaleDateString() : 'Not set'}
-                                        </p>
-                                    </div>";
+                $template = File::get(resource_path('templates/show_field_date.stub'));
+                return str_replace([
+                    '{{fieldName}}',
+                    '{{entityLower}}'
+                ], [
+                    $field['name'],
+                    $this->entityLower
+                ], $template);
             } elseif ($field['type'] === 'url') {
-                return "<div>
-                                        <label className=\"block text-sm font-medium text-gray-700\">{$field['name']}</label>
-                                        <p className=\"mt-1 text-sm text-gray-900\">
-                                            {{$this->entityLower}.{$field['name']} ? (
-                                                <a href={{{$this->entityLower}.{$field['name']}}} target=\"_blank\" rel=\"noopener noreferrer\" className=\"text-blue-600 hover:text-blue-800 underline\">
-                                                    {{$this->entityLower}.{$field['name']}}
-                                                </a>
-                                            ) : 'Not set'}
-                                        </p>
-                                    </div>";
+                $template = File::get(resource_path('templates/show_field_url.stub'));
+                return str_replace([
+                    '{{fieldName}}',
+                    '{{entityLower}}'
+                ], [
+                    $field['name'],
+                    $this->entityLower
+                ], $template);
             } else {
-                return "<div>
-                                        <label className=\"block text-sm font-medium text-gray-700\">{$field['name']}</label>
-                                        <p className=\"mt-1 text-sm text-gray-900\">{{$this->entityLower}.{$field['name']}}</p>
-                                    </div>";
+                $template = File::get(resource_path('templates/show_field_text.stub'));
+                return str_replace([
+                    '{{fieldName}}',
+                    '{{entityLower}}'
+                ], [
+                    $field['name'],
+                    $this->entityLower
+                ], $template);
             }
         }, $this->fields));
 
-        $showContent = "import { Head, Link } from '@inertiajs/react';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-
-export default function Show({ auth, {$this->entityLower} }) {
-    return (
-        <AuthenticatedLayout
-            header=\"{$this->entityName} Details\"
-            breadcrumbs={[
-                { label: 'Dashboard', href: route('dashboard') },
-                { label: '{$this->entityPlural}', href: route('{$this->entityPluralLower}.index') },
-                { label: '{$this->entityName} Details', href: route('{$this->entityPluralLower}.show', {$this->entityLower}.id) }
-            ]}
-        >
-            <Head title=\"{$this->entityName} Details\" />
-
-            <div className=\"bg-white shadow-sm rounded-lg p-6\">
-                <div className=\"mb-6\">
-                    <h3 className=\"text-lg font-semibold mb-4\">{$this->entityName} Information</h3>
-                    
-                    <div className=\"grid grid-cols-1 md:grid-cols-2 gap-4\">
-                        {$showFields}
-                    </div>
-                </div>
-
-                <div className=\"flex space-x-4\">
-                    <Link
-                        href={route('{$this->entityPluralLower}.edit', {$this->entityLower}.id)}
-                        className=\"bg-indigo-500 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded\"
-                    >
-                        Edit {$this->entityName}
-                    </Link>
-                    <Link
-                        href={route('{$this->entityPluralLower}.index')}
-                        className=\"bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded\"
-                    >
-                        Back to List
-                    </Link>
-                </div>
-            </div>
-        </AuthenticatedLayout>
-    );
-}";
+        $template = File::get(resource_path('templates/react_show.stub'));
+        $showContent = str_replace([
+            '{{entityName}}',
+            '{{entityPlural}}',
+            '{{entityPluralLower}}',
+            '{{entityLower}}',
+            '{{showFields}}'
+        ], [
+            $this->entityName,
+            $this->entityPlural,
+            $this->entityPluralLower,
+            $this->entityLower,
+            $showFields
+        ], $template);
 
         $showPath = resource_path("js/Pages/{$this->entityPlural}/Show.jsx");
         File::put($showPath, $showContent);
