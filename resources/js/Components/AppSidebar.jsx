@@ -65,7 +65,7 @@ export function AppSidebar() {
           <SidebarGroupLabel>Management</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-</SidebarMenu>
+              </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
         <Separator className="my-2" />

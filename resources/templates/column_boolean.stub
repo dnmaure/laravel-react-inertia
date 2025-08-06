@@ -1,0 +1,11 @@
+  {
+    accessorKey: "{{fieldName}}",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="{{fieldName}}" />
+    ),
+    cell: ({ row }) => (
+      <div className="capitalize">
+        {row.getValue("{{fieldName}}") ? "Yes" : "No"}
+      </div>
+    ),
+  }, 

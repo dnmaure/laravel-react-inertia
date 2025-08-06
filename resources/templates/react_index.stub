@@ -1,9 +1,25 @@
-import { Head, Link } from '@inertiajs/react';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import React, { useState } from 'react'
+import { Head, Link, router } from '@inertiajs/react'
+import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout'
+import { Button } from '@/Components/ui/ui/button'
+import { Input } from '@/Components/ui/ui/input'
+import { Plus, Search } from 'lucide-react'
+import { DataTable } from '@/Components/ui/data-table'
+import { columns } from './columns'
 
 export default function Index({ auth, {{entityPluralLower}} }) {
+    const [searchTerm, setSearchTerm] = useState('')
+
+    const filteredData = {{entityPluralLower}}?.data?.filter(item => {
+        if (!searchTerm) return true
+        return Object.values(item).some(value => 
+            String(value).toLowerCase().includes(searchTerm.toLowerCase())
+        )
+    }) || []
+
     return (
         <AuthenticatedLayout
+            user={auth.user}
             header="{{entityPlural}}"
             breadcrumbs={[
                 { label: 'Dashboard', href: route('dashboard') },
@@ -12,42 +28,37 @@ export default function Index({ auth, {{entityPluralLower}} }) {
         >
             <Head title="{{entityPlural}}" />
 
-            <div className="bg-white shadow-sm rounded-lg p-6">
-                <div className="flex justify-between items-center mb-6">
-                    <h3 className="text-lg font-semibold">{{entityName}} Management</h3>
-                    <Link href={route('{{entityPluralLower}}.create')} className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
-                        Add {{entityName}}
-                    </Link>
-                </div>
+            <div className="py-12">
+                <div className="max-w-7xl mx-auto sm:px-6 lg:px-8">
+                    <div className="bg-white overflow-hidden shadow-sm sm:rounded-lg">
+                        <div className="p-6 text-gray-900">
+                            <div className="flex justify-between items-center mb-6">
+                                <h2 className="text-2xl font-semibold">{{entityPlural}}</h2>
+                                <Link href={route('{{entityPluralLower}}.create')}>
+                                    <Button className="flex items-center gap-2">
+                                        <Plus className="h-4 w-4" />
+                                        Create {{entity}}
+                                    </Button>
+                                </Link>
+                            </div>
 
-                <div className="overflow-x-auto">
-                    <table className="min-w-full divide-y divide-gray-200">
-                        <thead className="bg-gray-50">
-                            <tr>
-                                {{tableHeaders}}
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody className="bg-white divide-y divide-gray-200">
-                            {{{entityPluralLower}}.data.map(({{entityLower}}) => (
-                                <tr key={{{entityLower}}.id}>
-                                    {{tableCells}}
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                                        <div className="flex space-x-2">
-                                            <Link href={route('{{entityPluralLower}}.show', {{entityLower}}.id)} className="text-blue-600 hover:text-blue-900">
-                                                View
-                                            </Link>
-                                            <Link href={route('{{entityPluralLower}}.edit', {{entityLower}}.id)} className="text-indigo-600 hover:text-indigo-900">
-                                                Edit
-                                            </Link>
-                                        </div>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
+                            <div className="flex items-center py-4">
+                                <div className="relative flex-1 max-w-sm">
+                                    <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                                    <Input
+                                        placeholder="Search {{entityPluralLower}}..."
+                                        value={searchTerm}
+                                        onChange={(e) => setSearchTerm(e.target.value)}
+                                        className="pl-8"
+                                    />
+                                </div>
+                            </div>
+
+                            <DataTable columns={columns} data={filteredData} />
+                        </div>
+                    </div>
                 </div>
             </div>
         </AuthenticatedLayout>
-    );
+    )
 }

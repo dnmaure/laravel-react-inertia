@@ -107,12 +107,18 @@ class CreateCrud extends Command
 
     protected function generateModel()
     {
+        // Filter out reserved field names
+        $reservedFields = ['id', 'created_at', 'updated_at'];
+        $filteredFields = array_filter($this->fields, function ($field) use ($reservedFields) {
+            return !in_array($field['name'], $reservedFields);
+        });
+
         $fillableFields = implode(",\n        ", array_map(function ($field) {
             return "'{$field['name']}'";
-        }, $this->fields));
+        }, $filteredFields));
 
         // Generate casts for date fields
-        $dateFields = array_filter($this->fields, function ($field) {
+        $dateFields = array_filter($filteredFields, function ($field) {
             return $field['type'] === 'date';
         });
         
@@ -148,6 +154,12 @@ class CreateCrud extends Command
 
     protected function generateMigration()
     {
+        // Filter out reserved field names
+        $reservedFields = ['id', 'created_at', 'updated_at'];
+        $filteredFields = array_filter($this->fields, function ($field) use ($reservedFields) {
+            return !in_array($field['name'], $reservedFields);
+        });
+
         $migrationFields = implode("\n            ", array_map(function ($field) {
             $type = $field['type'];
             $name = $field['name'];
@@ -178,7 +190,7 @@ class CreateCrud extends Command
                 default:
                     return "\$table->string('{$name}');";
             }
-        }, $this->fields));
+        }, $filteredFields));
 
         $template = File::get(resource_path('templates/migration.stub'));
         $content = str_replace([
@@ -197,6 +209,12 @@ class CreateCrud extends Command
 
     protected function generateController()
     {
+        // Filter out reserved field names
+        $reservedFields = ['id', 'created_at', 'updated_at'];
+        $filteredFields = array_filter($this->fields, function ($field) use ($reservedFields) {
+            return !in_array($field['name'], $reservedFields);
+        });
+
         $validationRules = implode(",\n            ", array_map(function ($field) {
             $rules = [];
             
@@ -235,12 +253,12 @@ class CreateCrud extends Command
             }
             
             return "'{$field['name']}' => '" . implode('|', $rules) . "'";
-        }, $this->fields));
+        }, $filteredFields));
 
         // Generate file upload handling code
         $fileUploadCode = '';
         $dateFormatCode = '';
-        foreach ($this->fields as $field) {
+        foreach ($filteredFields as $field) {
             if ($field['type'] === 'file') {
                 $fileUploadCode .= "
                 // Handle {$field['name']} file upload
@@ -306,46 +324,71 @@ class CreateCrud extends Command
 
     protected function generateIndexComponent()
     {
-        $tableHeaders = implode("\n", array_map(function ($field) {
-            $template = File::get(resource_path('templates/table_header.stub'));
+        // Filter out reserved field names
+        $reservedFields = ['id', 'created_at', 'updated_at'];
+        $filteredFields = array_filter($this->fields, function ($field) use ($reservedFields) {
+            return !in_array($field['name'], $reservedFields);
+        });
+
+        // Generate columns for data table
+        $columns = implode("\n", array_map(function ($field) {
+            if ($field['type'] === 'boolean' || $field['type'] === 'checkbox') {
+                $template = File::get(resource_path('templates/column_boolean.stub'));
+            } elseif ($field['type'] === 'date') {
+                $template = File::get(resource_path('templates/column_date.stub'));
+            } elseif ($field['type'] === 'url') {
+                $template = File::get(resource_path('templates/column_url.stub'));
+            } else {
+                $template = File::get(resource_path('templates/column_text.stub'));
+            }
             return str_replace('{{fieldName}}', $field['name'], $template);
-        }, $this->fields));
+        }, $filteredFields));
 
-        $tableCells = implode("\n", array_map(function ($field) {
-            $template = File::get(resource_path('templates/table_cell.stub'));
-            return str_replace([
-                '{{fieldName}}',
-                '{{entityLower}}'
-            ], [
-                $field['name'],
-                $this->entityLower
-            ], $template);
-        }, $this->fields));
-
+        // Generate Index component
         $template = File::get(resource_path('templates/react_index.stub'));
         $indexContent = str_replace([
             '{{entityName}}',
             '{{entityPlural}}',
             '{{entityPluralLower}}',
             '{{entityLower}}',
-            '{{tableHeaders}}',
-            '{{tableCells}}'
+            '{{entity}}'
         ], [
             $this->entityName,
             $this->entityPlural,
             $this->entityPluralLower,
             $this->entityLower,
-            $tableHeaders,
-            $tableCells
+            $this->entityName
         ], $template);
 
         $indexPath = resource_path("js/Pages/{$this->entityPlural}/Index.jsx");
         File::put($indexPath, $indexContent);
         $this->info("Index component created: {$indexPath}");
+
+        // Generate columns definition file
+        $columnsTemplate = File::get(resource_path('templates/columns.stub'));
+        $columnsContent = str_replace([
+            '{{columns}}',
+            '{{entityPluralLower}}',
+            '{{entityLower}}'
+        ], [
+            $columns,
+            $this->entityPluralLower,
+            $this->entityLower
+        ], $columnsTemplate);
+
+        $columnsPath = resource_path("js/Pages/{$this->entityPlural}/columns.jsx");
+        File::put($columnsPath, $columnsContent);
+        $this->info("Columns definition created: {$columnsPath}");
     }
 
     protected function generateCreateComponent()
     {
+        // Filter out reserved field names
+        $reservedFields = ['id', 'created_at', 'updated_at'];
+        $filteredFields = array_filter($this->fields, function ($field) use ($reservedFields) {
+            return !in_array($field['name'], $reservedFields);
+        });
+
         $formFields = implode("\n", array_map(function ($field) {
             $inputType = $this->getInputType($field['type']);
             $isTextarea = $field['type'] === 'text' || $field['type'] === 'longtext';
@@ -382,7 +425,7 @@ class CreateCrud extends Command
                     $inputType
                 ], $template);
             }
-        }, $this->fields));
+        }, $filteredFields));
 
         $formData = implode(",\n        ", array_map(function ($field) {
             if ($field['type'] === 'file') {
@@ -395,20 +438,20 @@ class CreateCrud extends Command
                 return "{$field['name']}: false";
             }
             return "{$field['name']}: ''";
-        }, $this->fields));
+        }, $filteredFields));
 
         // Check if we have date fields for conditional imports
-        $hasDateFields = !empty(array_filter($this->fields, function ($field) {
+        $hasDateFields = !empty(array_filter($filteredFields, function ($field) {
             return $field['type'] === 'date';
         }));
 
         // Check if we have boolean fields for conditional imports
-        $hasBooleanFields = !empty(array_filter($this->fields, function ($field) {
+        $hasBooleanFields = !empty(array_filter($filteredFields, function ($field) {
             return $field['type'] === 'boolean';
         }));
 
         // Check if we have checkbox fields for conditional imports
-        $hasCheckboxFields = !empty(array_filter($this->fields, function ($field) {
+        $hasCheckboxFields = !empty(array_filter($filteredFields, function ($field) {
             return $field['type'] === 'checkbox';
         }));
 
@@ -447,6 +490,12 @@ class CreateCrud extends Command
 
     protected function generateEditComponent()
     {
+        // Filter out reserved field names
+        $reservedFields = ['id', 'created_at', 'updated_at'];
+        $filteredFields = array_filter($this->fields, function ($field) use ($reservedFields) {
+            return !in_array($field['name'], $reservedFields);
+        });
+
         $formFields = implode("\n", array_map(function ($field) {
             $inputType = $this->getInputType($field['type']);
             $isTextarea = $field['type'] === 'text' || $field['type'] === 'longtext';
@@ -483,7 +532,7 @@ class CreateCrud extends Command
                     $inputType
                 ], $template);
             }
-        }, $this->fields));
+        }, $filteredFields));
 
         $formData = implode(",\n        ", array_map(function ($field) {
             if ($field['type'] === 'file') {
@@ -496,20 +545,20 @@ class CreateCrud extends Command
                 return "{$field['name']}: {$this->entityLower}.{$field['name']} || false";
             }
             return "{$field['name']}: {$this->entityLower}.{$field['name']} || ''";
-        }, $this->fields));
+        }, $filteredFields));
 
         // Check if we have date fields for conditional imports
-        $hasDateFields = !empty(array_filter($this->fields, function ($field) {
+        $hasDateFields = !empty(array_filter($filteredFields, function ($field) {
             return $field['type'] === 'date';
         }));
 
         // Check if we have boolean fields for conditional imports
-        $hasBooleanFields = !empty(array_filter($this->fields, function ($field) {
+        $hasBooleanFields = !empty(array_filter($filteredFields, function ($field) {
             return $field['type'] === 'boolean';
         }));
 
         // Check if we have checkbox fields for conditional imports
-        $hasCheckboxFields = !empty(array_filter($this->fields, function ($field) {
+        $hasCheckboxFields = !empty(array_filter($filteredFields, function ($field) {
             return $field['type'] === 'checkbox';
         }));
 
@@ -550,6 +599,12 @@ class CreateCrud extends Command
 
     protected function generateShowComponent()
     {
+        // Filter out reserved field names
+        $reservedFields = ['id', 'created_at', 'updated_at'];
+        $filteredFields = array_filter($this->fields, function ($field) use ($reservedFields) {
+            return !in_array($field['name'], $reservedFields);
+        });
+
         $showFields = implode("\n", array_map(function ($field) {
             if ($field['type'] === 'file') {
                 $template = File::get(resource_path('templates/show_field_file.stub'));
@@ -590,7 +645,7 @@ class CreateCrud extends Command
                     $this->entityLower
                 ], $template);
             }
-        }, $this->fields));
+        }, $filteredFields));
 
         $template = File::get(resource_path('templates/react_show.stub'));
         $showContent = str_replace([
