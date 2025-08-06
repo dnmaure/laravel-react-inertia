@@ -19,7 +19,7 @@ class CreateCrud extends Command
     protected $fields = [];
 
     protected $availableFieldTypes = [
-        'string', 'integer', 'decimal', 'boolean', 'date', 'text', 
+        'string', 'integer', 'decimal', 'boolean', 'checkbox', 'date', 'text', 
         'longtext', 'email', 'file', 'url'
     ];
 
@@ -161,6 +161,8 @@ class CreateCrud extends Command
                     return "\$table->decimal('{$name}', 10, 2);";
                 case 'boolean':
                     return "\$table->boolean('{$name}')->default(false);";
+                case 'checkbox':
+                    return "\$table->boolean('{$name}')->default(false);";
                 case 'date':
                     return "\$table->date('{$name}');";
                 case 'text':
@@ -211,6 +213,9 @@ class CreateCrud extends Command
                     $rules[] = 'nullable|numeric';
                     break;
                 case 'boolean':
+                    $rules[] = 'nullable|boolean';
+                    break;
+                case 'checkbox':
                     $rules[] = 'nullable|boolean';
                     break;
                 case 'date':
@@ -370,75 +375,41 @@ export default function Index({ auth, {$this->entityPluralLower} }) {
 
     protected function generateCreateComponent()
     {
-        $formFields = implode("\n                                ", array_map(function ($field) {
+        $formFields = implode("\n", array_map(function ($field) {
             $inputType = $this->getInputType($field['type']);
             $isTextarea = $field['type'] === 'text' || $field['type'] === 'longtext';
             
             if ($isTextarea) {
                 $rows = $field['type'] === 'longtext' ? '6' : '3';
-                return "<div className=\"mb-4\">
-                                    <label className=\"block text-gray-700 text-sm font-bold mb-2\">
-                                        {$field['name']}
-                                    </label>
-                                    <textarea
-                                        className=\"shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline\"
-                                        value={data.{$field['name']}}
-                                        onChange={(e) => setData('{$field['name']}', e.target.value)}
-                                        rows=\"{$rows}\"
-                                    />
-                                    {errors.{$field['name']} && <div className=\"text-red-500 text-xs\">{errors.{$field['name']}}</div>}
-                                </div>";
+                $template = File::get(resource_path('templates/form_field_textarea.stub'));
+                return str_replace([
+                    '{{fieldName}}',
+                    '{{rows}}'
+                ], [
+                    $field['name'],
+                    $rows
+                ], $template);
             } elseif ($field['type'] === 'file') {
-                return "<div className=\"mb-4\">
-                                    <label className=\"block text-gray-700 text-sm font-bold mb-2\">
-                                        {$field['name']}
-                                    </label>
-                                    <input
-                                        type=\"file\"
-                                        className=\"shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline\"
-                                        onChange={(e) => setData('{$field['name']}', e.target.files[0])}
-                                    />
-                                    {errors.{$field['name']} && <div className=\"text-red-500 text-xs\">{errors.{$field['name']}}</div>}
-                                </div>";
+                $template = File::get(resource_path('templates/form_field_file.stub'));
+                return str_replace('{{fieldName}}', $field['name'], $template);
             } elseif ($field['type'] === 'date') {
-                return "<div className=\"mb-4\">
-                                    <label className=\"block text-gray-700 text-sm font-bold mb-2\">
-                                        {$field['name']}
-                                    </label>
-                                    <DatePicker
-                                        value={data.{$field['name']}}
-                                        onChange={(date) => setData('{$field['name']}', date)}
-                                        placeholder=\"Select {$field['name']}\"
-                                        error={errors.{$field['name']}}
-                                    />
-                                </div>";
+                $template = File::get(resource_path('templates/form_field_date.stub'));
+                return str_replace('{{fieldName}}', $field['name'], $template);
             } elseif ($field['type'] === 'boolean') {
-                return "<div className=\"mb-4\">
-                                    <div className=\"flex items-center space-x-2\">
-                                        <Switch
-                                            id=\"{$field['name']}\"
-                                            checked={data.{$field['name']}}
-                                            onCheckedChange={(checked) => setData('{$field['name']}', checked)}
-                                        />
-                                        <label htmlFor=\"{$field['name']}\" className=\"text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70\">
-                                            {$field['name']}
-                                        </label>
-                                    </div>
-                                    {errors.{$field['name']} && <div className=\"text-red-500 text-xs mt-1\">{errors.{$field['name']}}</div>}
-                                </div>";
+                $template = File::get(resource_path('templates/form_field_switch.stub'));
+                return str_replace('{{fieldName}}', $field['name'], $template);
+            } elseif ($field['type'] === 'checkbox') {
+                $template = File::get(resource_path('templates/form_field_checkbox.stub'));
+                return str_replace('{{fieldName}}', $field['name'], $template);
             } else {
-                return "<div className=\"mb-4\">
-                                    <label className=\"block text-gray-700 text-sm font-bold mb-2\">
-                                        {$field['name']}
-                                    </label>
-                                    <input
-                                        type=\"{$inputType}\"
-                                        className=\"shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline\"
-                                        value={data.{$field['name']}}
-                                        onChange={(e) => setData('{$field['name']}', e.target.value)}
-                                    />
-                                    {errors.{$field['name']} && <div className=\"text-red-500 text-xs\">{errors.{$field['name']}}</div>}
-                                </div>";
+                $template = File::get(resource_path('templates/form_field_text.stub'));
+                return str_replace([
+                    '{{fieldName}}',
+                    '{{inputType}}'
+                ], [
+                    $field['name'],
+                    $inputType
+                ], $template);
             }
         }, $this->fields));
 
@@ -448,6 +419,8 @@ export default function Index({ auth, {$this->entityPluralLower} }) {
             } elseif ($field['type'] === 'date') {
                 return "{$field['name']}: null";
             } elseif ($field['type'] === 'boolean') {
+                return "{$field['name']}: false";
+            } elseif ($field['type'] === 'checkbox') {
                 return "{$field['name']}: false";
             }
             return "{$field['name']}: ''";
@@ -463,58 +436,38 @@ export default function Index({ auth, {$this->entityPluralLower} }) {
             return $field['type'] === 'boolean';
         }));
 
+        // Check if we have checkbox fields for conditional imports
+        $hasCheckboxFields = !empty(array_filter($this->fields, function ($field) {
+            return $field['type'] === 'checkbox';
+        }));
+
         $datePickerImport = $hasDateFields ? "import DatePicker from '@/Components/ui/DatePicker';" : "";
         $switchImport = $hasBooleanFields ? "import { Switch } from '@/Components/ui/ui/switch';" : "";
+        $checkboxImport = $hasCheckboxFields ? "import { Checkbox } from '@/Components/ui/ui/checkbox';" : "";
+        $labelImport = $hasCheckboxFields ? "import { Label } from '@/Components/ui/ui/label';" : "";
 
-        $createContent = "import { Head, useForm } from '@inertiajs/react';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-{$datePickerImport}
-{$switchImport}
-
-export default function Create({ auth, errors }) {
-    const { data, setData, post, processing } = useForm({
-        {$formData},
-    });
-
-    const submit = (e) => {
-        e.preventDefault();
-        post(route('{$this->entityPluralLower}.store'), {
-            preserveScroll: true,
-            onSuccess: () => {
-                // Form will be reset automatically
-            },
-        });
-    };
-
-    return (
-        <AuthenticatedLayout
-            header=\"Create {$this->entityName}\"
-            breadcrumbs={[
-                { label: 'Dashboard', href: route('dashboard') },
-                { label: '{$this->entityPlural}', href: route('{$this->entityPluralLower}.index') },
-                { label: 'Create {$this->entityName}', href: route('{$this->entityPluralLower}.create') }
-            ]}
-        >
-            <Head title=\"Create {$this->entityName}\" />
-
-            <div className=\"bg-white shadow-sm rounded-lg p-6\">
-                <form onSubmit={submit}>
-                                {$formFields}
-
-                    <div className=\"flex items-center justify-between\">
-                        <button
-                            type=\"submit\"
-                            disabled={processing}
-                            className=\"bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline\"
-                        >
-                            Create {$this->entityName}
-                        </button>
-                    </div>
-                </form>
-            </div>
-        </AuthenticatedLayout>
-    );
-}";
+        $template = File::get(resource_path('templates/react_create.stub'));
+        $createContent = str_replace([
+            '{{entityName}}',
+            '{{entityPlural}}',
+            '{{entityPluralLower}}',
+            '{{formData}}',
+            '{{formFields}}',
+            '{{datePickerImport}}',
+            '{{switchImport}}',
+            '{{checkboxImport}}',
+            '{{labelImport}}'
+        ], [
+            $this->entityName,
+            $this->entityPlural,
+            $this->entityPluralLower,
+            $formData,
+            $formFields,
+            $datePickerImport,
+            $switchImport,
+            $checkboxImport,
+            $labelImport
+        ], $template);
 
         $createPath = resource_path("js/Pages/{$this->entityPlural}/Create.jsx");
         File::put($createPath, $createContent);
@@ -523,75 +476,41 @@ export default function Create({ auth, errors }) {
 
     protected function generateEditComponent()
     {
-        $formFields = implode("\n                                ", array_map(function ($field) {
+        $formFields = implode("\n", array_map(function ($field) {
             $inputType = $this->getInputType($field['type']);
             $isTextarea = $field['type'] === 'text' || $field['type'] === 'longtext';
             
             if ($isTextarea) {
                 $rows = $field['type'] === 'longtext' ? '6' : '3';
-                return "<div className=\"mb-4\">
-                                    <label className=\"block text-gray-700 text-sm font-bold mb-2\">
-                                        {$field['name']}
-                                    </label>
-                                    <textarea
-                                        className=\"shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline\"
-                                        value={data.{$field['name']}}
-                                        onChange={(e) => setData('{$field['name']}', e.target.value)}
-                                        rows=\"{$rows}\"
-                                    />
-                                    {errors.{$field['name']} && <div className=\"text-red-500 text-xs\">{errors.{$field['name']}}</div>}
-                                </div>";
+                $template = File::get(resource_path('templates/form_field_textarea.stub'));
+                return str_replace([
+                    '{{fieldName}}',
+                    '{{rows}}'
+                ], [
+                    $field['name'],
+                    $rows
+                ], $template);
             } elseif ($field['type'] === 'file') {
-                return "<div className=\"mb-4\">
-                                    <label className=\"block text-gray-700 text-sm font-bold mb-2\">
-                                        {$field['name']}
-                                    </label>
-                                    <input
-                                        type=\"file\"
-                                        className=\"shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline\"
-                                        onChange={(e) => setData('{$field['name']}', e.target.files[0])}
-                                    />
-                                    {errors.{$field['name']} && <div className=\"text-red-500 text-xs\">{errors.{$field['name']}}</div>}
-                                </div>";
+                $template = File::get(resource_path('templates/form_field_file.stub'));
+                return str_replace('{{fieldName}}', $field['name'], $template);
             } elseif ($field['type'] === 'date') {
-                return "<div className=\"mb-4\">
-                                    <label className=\"block text-gray-700 text-sm font-bold mb-2\">
-                                        {$field['name']}
-                                    </label>
-                                    <DatePicker
-                                        value={data.{$field['name']}}
-                                        onChange={(date) => setData('{$field['name']}', date)}
-                                        placeholder=\"Select {$field['name']}\"
-                                        error={errors.{$field['name']}}
-                                    />
-                                </div>";
+                $template = File::get(resource_path('templates/form_field_date.stub'));
+                return str_replace('{{fieldName}}', $field['name'], $template);
             } elseif ($field['type'] === 'boolean') {
-                return "<div className=\"mb-4\">
-                                    <div className=\"flex items-center space-x-2\">
-                                        <Switch
-                                            id=\"{$field['name']}\"
-                                            checked={data.{$field['name']}}
-                                            onCheckedChange={(checked) => setData('{$field['name']}', checked)}
-                                        />
-                                        <label htmlFor=\"{$field['name']}\" className=\"text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70\">
-                                            {$field['name']}
-                                        </label>
-                                    </div>
-                                    {errors.{$field['name']} && <div className=\"text-red-500 text-xs mt-1\">{errors.{$field['name']}}</div>}
-                                </div>";
+                $template = File::get(resource_path('templates/form_field_switch.stub'));
+                return str_replace('{{fieldName}}', $field['name'], $template);
+            } elseif ($field['type'] === 'checkbox') {
+                $template = File::get(resource_path('templates/form_field_checkbox.stub'));
+                return str_replace('{{fieldName}}', $field['name'], $template);
             } else {
-                return "<div className=\"mb-4\">
-                                    <label className=\"block text-gray-700 text-sm font-bold mb-2\">
-                                        {$field['name']}
-                                    </label>
-                                    <input
-                                        type=\"{$inputType}\"
-                                        className=\"shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline\"
-                                        value={data.{$field['name']}}
-                                        onChange={(e) => setData('{$field['name']}', e.target.value)}
-                                    />
-                                    {errors.{$field['name']} && <div className=\"text-red-500 text-xs\">{errors.{$field['name']}}</div>}
-                                </div>";
+                $template = File::get(resource_path('templates/form_field_text.stub'));
+                return str_replace([
+                    '{{fieldName}}',
+                    '{{inputType}}'
+                ], [
+                    $field['name'],
+                    $inputType
+                ], $template);
             }
         }, $this->fields));
 
@@ -601,6 +520,8 @@ export default function Create({ auth, errors }) {
             } elseif ($field['type'] === 'date') {
                 return "{$field['name']}: {$this->entityLower}.{$field['name']} || null";
             } elseif ($field['type'] === 'boolean') {
+                return "{$field['name']}: {$this->entityLower}.{$field['name']} || false";
+            } elseif ($field['type'] === 'checkbox') {
                 return "{$field['name']}: {$this->entityLower}.{$field['name']} || false";
             }
             return "{$field['name']}: {$this->entityLower}.{$field['name']} || ''";
@@ -616,58 +537,40 @@ export default function Create({ auth, errors }) {
             return $field['type'] === 'boolean';
         }));
 
+        // Check if we have checkbox fields for conditional imports
+        $hasCheckboxFields = !empty(array_filter($this->fields, function ($field) {
+            return $field['type'] === 'checkbox';
+        }));
+
         $datePickerImport = $hasDateFields ? "import DatePicker from '@/Components/ui/DatePicker';" : "";
         $switchImport = $hasBooleanFields ? "import { Switch } from '@/Components/ui/ui/switch';" : "";
+        $checkboxImport = $hasCheckboxFields ? "import { Checkbox } from '@/Components/ui/ui/checkbox';" : "";
+        $labelImport = $hasCheckboxFields ? "import { Label } from '@/Components/ui/ui/label';" : "";
 
-        $editContent = "import { Head, useForm } from '@inertiajs/react';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-{$datePickerImport}
-{$switchImport}
-
-export default function Edit({ auth, {$this->entityLower}, errors }) {
-    const { data, setData, put, processing } = useForm({
-        {$formData},
-    });
-
-    const submit = (e) => {
-        e.preventDefault();
-        put(route('{$this->entityPluralLower}.update', {$this->entityLower}.id), {
-            preserveScroll: true,
-            onSuccess: () => {
-                // Form will be reset automatically
-            },
-        });
-    };
-
-    return (
-        <AuthenticatedLayout
-            header=\"Edit {$this->entityName}\"
-            breadcrumbs={[
-                { label: 'Dashboard', href: route('dashboard') },
-                { label: '{$this->entityPlural}', href: route('{$this->entityPluralLower}.index') },
-                { label: 'Edit {$this->entityName}', href: route('{$this->entityPluralLower}.edit', {$this->entityLower}.id) }
-            ]}
-        >
-            <Head title=\"Edit {$this->entityName}\" />
-
-            <div className=\"bg-white shadow-sm rounded-lg p-6\">
-                <form onSubmit={submit}>
-                    {$formFields}
-
-                    <div className=\"flex items-center justify-between\">
-                        <button
-                            type=\"submit\"
-                            disabled={processing}
-                            className=\"bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline\"
-                        >
-                            Update {$this->entityName}
-                        </button>
-                    </div>
-                </form>
-            </div>
-        </AuthenticatedLayout>
-    );
-}";
+        $template = File::get(resource_path('templates/react_edit.stub'));
+        $editContent = str_replace([
+            '{{entityName}}',
+            '{{entityPlural}}',
+            '{{entityPluralLower}}',
+            '{{entityLower}}',
+            '{{formData}}',
+            '{{formFields}}',
+            '{{datePickerImport}}',
+            '{{switchImport}}',
+            '{{checkboxImport}}',
+            '{{labelImport}}'
+        ], [
+            $this->entityName,
+            $this->entityPlural,
+            $this->entityPluralLower,
+            $this->entityLower,
+            $formData,
+            $formFields,
+            $datePickerImport,
+            $switchImport,
+            $checkboxImport,
+            $labelImport
+        ], $template);
 
         $editPath = resource_path("js/Pages/{$this->entityPlural}/Edit.jsx");
         File::put($editPath, $editContent);
@@ -791,6 +694,8 @@ export default function Show({ auth, {$this->entityLower} }) {
             case 'url':
                 return 'url';
             case 'boolean':
+                return 'checkbox';
+            case 'checkbox':
                 return 'checkbox';
             default:
                 return 'text';
