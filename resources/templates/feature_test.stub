@@ -1,0 +1,147 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Models\{{entity}};
+use App\Models\User;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\TestCase;
+
+class {{entity}}ControllerTest extends TestCase
+{
+    use RefreshDatabase;
+
+    protected $user;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->user = User::factory()->create();
+    }
+
+    public function test_{{entityLower}}_index_page_is_displayed(): void
+    {
+        $response = $this
+            ->actingAs($this->user)
+            ->get(route('{{entityPluralLower}}.index'));
+
+        $response->assertOk();
+    }
+
+    public function test_{{entityLower}}_create_page_is_displayed(): void
+    {
+        $response = $this
+            ->actingAs($this->user)
+            ->get(route('{{entityPluralLower}}.create'));
+
+        $response->assertOk();
+    }
+
+    public function test_{{entityLower}}_can_be_created(): void
+    {
+        ${{entityLower}}Data = [
+            {{testData}}
+        ];
+
+        $response = $this
+            ->actingAs($this->user)
+            ->post(route('{{entityPluralLower}}.store'), ${{entityLower}}Data);
+
+        $response
+            ->assertSessionHasNoErrors()
+            ->assertRedirect(route('{{entityPluralLower}}.index'));
+
+        $this->assertDatabaseHas('{{entityPluralLower}}', ${{entityLower}}Data);
+    }
+
+    public function test_{{entityLower}}_show_page_is_displayed(): void
+    {
+        ${{entityLower}} = {{entity}}::factory()->create();
+
+        $response = $this
+            ->actingAs($this->user)
+            ->get(route('{{entityPluralLower}}.show', ${{entityLower}}));
+
+        $response->assertOk();
+    }
+
+    public function test_{{entityLower}}_edit_page_is_displayed(): void
+    {
+        ${{entityLower}} = {{entity}}::factory()->create();
+
+        $response = $this
+            ->actingAs($this->user)
+            ->get(route('{{entityPluralLower}}.edit', ${{entityLower}}));
+
+        $response->assertOk();
+    }
+
+    public function test_{{entityLower}}_can_be_updated(): void
+    {
+        ${{entityLower}} = {{entity}}::factory()->create();
+
+        $updateData = [
+            {{updateData}}
+        ];
+
+        $response = $this
+            ->actingAs($this->user)
+            ->patch(route('{{entityPluralLower}}.update', ${{entityLower}}), $updateData);
+
+        $response
+            ->assertSessionHasNoErrors()
+            ->assertRedirect(route('{{entityPluralLower}}.index'));
+
+        $this->assertDatabaseHas('{{entityPluralLower}}', array_merge(
+            ['id' => ${{entityLower}}->id],
+            $updateData
+        ));
+    }
+
+    public function test_{{entityLower}}_can_be_deleted(): void
+    {
+        ${{entityLower}} = {{entity}}::factory()->create();
+
+        $response = $this
+            ->actingAs($this->user)
+            ->delete(route('{{entityPluralLower}}.destroy', ${{entityLower}}));
+
+        $response
+            ->assertSessionHasNoErrors()
+            ->assertRedirect(route('{{entityPluralLower}}.index'));
+
+        $this->assertDatabaseMissing('{{entityPluralLower}}', ['id' => ${{entityLower}}->id]);
+    }
+
+{{validationTests}}
+
+    public function test_unauthenticated_user_cannot_access_{{entityLower}}_pages(): void
+    {
+        ${{entityLower}} = {{entity}}::factory()->create();
+
+        $routes = [
+            'get' => [
+                route('{{entityPluralLower}}.index'),
+                route('{{entityPluralLower}}.create'),
+                route('{{entityPluralLower}}.show', ${{entityLower}}),
+                route('{{entityPluralLower}}.edit', ${{entityLower}}),
+            ],
+            'post' => [
+                route('{{entityPluralLower}}.store'),
+            ],
+            'patch' => [
+                route('{{entityPluralLower}}.update', ${{entityLower}}),
+            ],
+            'delete' => [
+                route('{{entityPluralLower}}.destroy', ${{entityLower}}),
+            ],
+        ];
+
+        foreach ($routes as $method => $urls) {
+            foreach ($urls as $url) {
+                $response = $this->$method($url);
+                $response->assertRedirect(route('login'));
+            }
+        }
+    }
+}

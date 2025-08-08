@@ -1,0 +1,61 @@
+<?php
+
+namespace Tests\Unit;
+
+use App\Models\{{entity}};
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\TestCase;
+
+class {{entity}}Test extends TestCase
+{
+    use RefreshDatabase;
+
+    public function test_{{entityLower}}_can_be_created(): void
+    {
+        ${{entityLower}}Data = [
+            {{testData}}
+        ];
+
+        ${{entityLower}} = {{entity}}::create(${{entityLower}}Data);
+
+        $this->assertInstanceOf({{entity}}::class, ${{entityLower}});
+        $this->assertDatabaseHas('{{entityPluralLower}}', ${{entityLower}}Data);
+    }
+
+    public function test_{{entityLower}}_fillable_fields(): void
+    {
+        ${{entityLower}} = new {{entity}}();
+        
+        $expectedFillable = [
+{{fillableFields}}
+        ];
+
+        $this->assertEquals($expectedFillable, ${{entityLower}}->getFillable());
+    }
+
+    public function test_{{entityLower}}_can_be_updated(): void
+    {
+        ${{entityLower}} = {{entity}}::factory()->create();
+
+        $updateData = [
+            {{updateData}}
+        ];
+
+        ${{entityLower}}->update($updateData);
+
+        $this->assertDatabaseHas('{{entityPluralLower}}', array_merge(
+            ['id' => ${{entityLower}}->id],
+            $updateData
+        ));
+    }
+
+    public function test_{{entityLower}}_can_be_deleted(): void
+    {
+        ${{entityLower}} = {{entity}}::factory()->create();
+        ${{entityLower}}Id = ${{entityLower}}->id;
+
+        ${{entityLower}}->delete();
+
+        $this->assertDatabaseMissing('{{entityPluralLower}}', ['id' => ${{entityLower}}Id]);
+    }
+}

@@ -44,6 +44,8 @@ class CreateCrud extends Command
         $this->generateModel();
         $this->generateMigration();
         $this->generateController();
+        $this->generateFactory();
+        $this->generateTests();
         $this->generateReactComponents();
         $this->addWebRoutes();
         $this->updateNavigation();
@@ -52,7 +54,16 @@ class CreateCrud extends Command
         $this->runMigrationIfTableDoesNotExist();
 
         $this->info("CRUD for {$this->entityName} created successfully!");
-        $this->info("Don't forget to run: php artisan storage:link");
+        $this->info("Generated components:");
+        $this->info("- Model, Migration, Controller");
+        $this->info("- Factory for testing");
+        $this->info("- Unit and Feature tests");
+        $this->info("- React components (Index, Create, Edit, Show)");
+        $this->info("- Routes and navigation");
+        $this->info("");
+        $this->info("Next steps:");
+        $this->info("- Run tests: php artisan test --filter={$this->entityName}");
+        $this->info("- Don't forget to run: php artisan storage:link");
     }
 
     protected function askForFields()
@@ -667,7 +678,274 @@ class CreateCrud extends Command
         $this->info("Show component created: {$showPath}");
     }
 
+    protected function generateFactory()
+    {
+        // Filter out reserved field names
+        $reservedFields = ['id', 'created_at', 'updated_at'];
+        $filteredFields = array_filter($this->fields, function ($field) use ($reservedFields) {
+            return !in_array($field['name'], $reservedFields);
+        });
 
+        $factoryFields = implode(",\n            ", array_map(function ($field) {
+            $faker = $this->getFakerMethod($field['type']);
+            return "'{$field['name']}' => {$faker}";
+        }, $filteredFields));
+
+        $template = File::get(resource_path('templates/factory.stub'));
+        $content = str_replace([
+            '{{entity}}',
+            '{{factoryFields}}'
+        ], [
+            $this->entityName,
+            $factoryFields
+        ], $template);
+
+        $factoryPath = database_path("factories/{$this->entityName}Factory.php");
+        File::put($factoryPath, $content);
+        $this->info("Factory created: {$factoryPath}");
+    }
+
+    protected function generateTests()
+    {
+        $this->generateUnitTest();
+        $this->generateFeatureTest();
+    }
+
+    protected function generateUnitTest()
+    {
+        // Filter out reserved field names
+        $reservedFields = ['id', 'created_at', 'updated_at'];
+        $filteredFields = array_filter($this->fields, function ($field) use ($reservedFields) {
+            return !in_array($field['name'], $reservedFields);
+        });
+
+        // Generate test data
+        $testData = implode(",\n            ", array_map(function ($field) {
+            $value = $this->getTestValue($field['type']);
+            return "'{$field['name']}' => {$value}";
+        }, $filteredFields));
+
+        // Generate update data
+        $updateData = implode(",\n            ", array_map(function ($field) {
+            $value = $this->getTestValue($field['type'], true);
+            return "'{$field['name']}' => {$value}";
+        }, $filteredFields));
+
+        // Generate fillable fields array
+        $fillableFields = implode(",\n            ", array_map(function ($field) {
+            return "'{$field['name']}'";
+        }, $filteredFields));
+
+        $template = File::get(resource_path('templates/unit_test.stub'));
+        $content = str_replace([
+            '{{entity}}',
+            '{{entityLower}}',
+            '{{entityPluralLower}}',
+            '{{testData}}',
+            '{{updateData}}',
+            '{{fillableFields}}'
+        ], [
+            $this->entityName,
+            $this->entityLower,
+            $this->entityPluralLower,
+            $testData,
+            $updateData,
+            $fillableFields
+        ], $template);
+
+        $unitTestPath = base_path("tests/Unit/{$this->entityName}Test.php");
+        File::put($unitTestPath, $content);
+        $this->info("Unit test created: {$unitTestPath}");
+    }
+
+    protected function generateFeatureTest()
+    {
+        // Filter out reserved field names
+        $reservedFields = ['id', 'created_at', 'updated_at'];
+        $filteredFields = array_filter($this->fields, function ($field) use ($reservedFields) {
+            return !in_array($field['name'], $reservedFields);
+        });
+
+        // Generate test data
+        $testData = implode(",\n            ", array_map(function ($field) {
+            $value = $this->getTestValue($field['type']);
+            return "'{$field['name']}' => {$value}";
+        }, $filteredFields));
+
+        // Generate update data
+        $updateData = implode(",\n            ", array_map(function ($field) {
+            $value = $this->getTestValue($field['type'], true);
+            return "'{$field['name']}' => {$value}";
+        }, $filteredFields));
+
+        // Generate validation tests
+        $validationTests = $this->generateValidationTests($filteredFields);
+
+        $template = File::get(resource_path('templates/feature_test.stub'));
+        $content = str_replace([
+            '{{entity}}',
+            '{{entityLower}}',
+            '{{entityPluralLower}}',
+            '{{testData}}',
+            '{{updateData}}',
+            '{{validationTests}}'
+        ], [
+            $this->entityName,
+            $this->entityLower,
+            $this->entityPluralLower,
+            $testData,
+            $updateData,
+            $validationTests
+        ], $template);
+
+        $featureTestPath = base_path("tests/Feature/{$this->entityName}ControllerTest.php");
+        File::put($featureTestPath, $content);
+        $this->info("Feature test created: {$featureTestPath}");
+    }
+
+    protected function getFakerMethod($fieldType)
+    {
+        switch ($fieldType) {
+            case 'string':
+                return '$this->faker->words(3, true)';
+            case 'email':
+                return '$this->faker->safeEmail()';
+            case 'url':
+                return '$this->faker->url()';
+            case 'text':
+                return '$this->faker->paragraph()';
+            case 'longtext':
+                return '$this->faker->paragraphs(3, true)';
+            case 'integer':
+                return '$this->faker->numberBetween(1, 1000)';
+            case 'decimal':
+                return '$this->faker->randomFloat(2, 0, 9999.99)';
+            case 'boolean':
+            case 'checkbox':
+                return '$this->faker->boolean()';
+            case 'date':
+                return '$this->faker->date()';
+            case 'file':
+                return "'test-file.jpg'";
+            default:
+                return '$this->faker->word()';
+        }
+    }
+
+    protected function getTestValue($fieldType, $alternate = false)
+    {
+        switch ($fieldType) {
+            case 'string':
+                return $alternate ? "'Updated Test String'" : "'Test String'";
+            case 'text':
+                return $alternate ? "'Updated test paragraph.'" : "'Test paragraph.'";
+            case 'longtext':
+                return $alternate ? "'Updated long test content.'" : "'Long test content.'";
+            case 'integer':
+                return $alternate ? '200' : '100';
+            case 'decimal':
+                return $alternate ? '99.99' : '50.00';
+            case 'boolean':
+            case 'checkbox':
+                return $alternate ? 'false' : 'true';
+            case 'date':
+                return $alternate ? "'2024-12-31'" : "'2024-01-01'";
+            case 'email':
+                return $alternate ? "'updated@example.com'" : "'test@example.com'";
+            case 'url':
+                return $alternate ? "'https://updated.example.com'" : "'https://example.com'";
+            case 'file':
+                return $alternate ? "'updated-file.jpg'" : "'test-file.jpg'";
+            default:
+                return $alternate ? "'updated'" : "'test'";
+        }
+    }
+
+    protected function generateFieldValidationTest($field)
+    {
+        $rules = $this->getValidationRules($field['type']);
+        if (empty($rules)) {
+            return '';
+        }
+
+        $testName = "test_{$field['name']}_validation";
+        return "    public function {$testName}(): void
+    {
+        \$invalidData = ['{$field['name']}' => {$this->getInvalidTestValue($field['type'])}];
+        
+        \$this->expectException(\\Illuminate\\Validation\\ValidationException::class);
+        
+        {$this->entityName}::create(\$invalidData);
+    }";
+    }
+
+    protected function getValidationRules($fieldType)
+    {
+        switch ($fieldType) {
+            case 'email':
+                return ['email'];
+            case 'integer':
+                return ['integer'];
+            case 'decimal':
+                return ['numeric'];
+            case 'boolean':
+            case 'checkbox':
+                return ['boolean'];
+            case 'date':
+                return ['date'];
+            case 'url':
+                return ['url'];
+            default:
+                return [];
+        }
+    }
+
+    protected function getInvalidTestValue($fieldType)
+    {
+        switch ($fieldType) {
+            case 'email':
+                return "'invalid-email'";
+            case 'integer':
+                return "'not-an-integer'";
+            case 'decimal':
+                return "'not-a-number'";
+            case 'boolean':
+            case 'checkbox':
+                return "'not-a-boolean'";
+            case 'date':
+                return "'invalid-date'";
+            case 'url':
+                return "'not-a-url'";
+            default:
+                return "123"; // This should be invalid for string fields expecting string
+        }
+    }
+
+    protected function generateValidationTests($fields)
+    {
+        $tests = [];
+        
+        foreach ($fields as $field) {
+            $rules = $this->getValidationRules($field['type']);
+            if (!empty($rules)) {
+                $testName = "test_{$field['name']}_validation_fails_with_invalid_data";
+                $invalidValue = $this->getInvalidTestValue($field['type']);
+                
+                $tests[] = "    public function {$testName}(): void
+    {
+        \$invalidData = ['{$field['name']}' => {$invalidValue}];
+
+        \$response = \$this
+            ->actingAs(\$this->user)
+            ->post(route('{$this->entityPluralLower}.store'), \$invalidData);
+
+        \$response->assertSessionHasErrors('{$field['name']}');
+    }";
+            }
+        }
+        
+        return implode("\n\n", $tests);
+    }
 
     protected function getInputType($fieldType)
     {
