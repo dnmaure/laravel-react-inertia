@@ -128,20 +128,30 @@ class CreateCrud extends Command
             return "'{$field['name']}'";
         }, $filteredFields));
 
-        // Generate casts for date fields
+        // Generate casts for date and boolean fields
         $dateFields = array_filter($filteredFields, function ($field) {
             return $field['type'] === 'date';
         });
         
+        $booleanFields = array_filter($filteredFields, function ($field) {
+            return $field['type'] === 'boolean' || $field['type'] === 'checkbox';
+        });
+        
+        $castFields = [];
+        foreach ($dateFields as $field) {
+            $castFields[] = "'{$field['name']}' => 'date'";
+        }
+        foreach ($booleanFields as $field) {
+            $castFields[] = "'{$field['name']}' => 'boolean'";
+        }
+        
         $dateCasts = '';
-        if (!empty($dateFields)) {
-            $castFields = implode(",\n        ", array_map(function ($field) {
-                return "'{$field['name']}' => 'date'";
-            }, $dateFields));
+        if (!empty($castFields)) {
+            $casts = implode(",\n        ", $castFields);
             $dateCasts = "
 
     protected \$casts = [
-        {$castFields},
+        {$casts},
     ];";
         }
 
@@ -174,32 +184,34 @@ class CreateCrud extends Command
         $migrationFields = implode("\n            ", array_map(function ($field) {
             $type = $field['type'];
             $name = $field['name'];
+            $isRequired = $this->shouldFieldBeRequired($field);
+            $nullable = $isRequired ? '' : '->nullable()';
             
             switch ($type) {
                 case 'string':
-                    return "\$table->string('{$name}');";
+                    return "\$table->string('{$name}'){$nullable};";
                 case 'integer':
-                    return "\$table->integer('{$name}');";
+                    return "\$table->integer('{$name}'){$nullable};";
                 case 'decimal':
-                    return "\$table->decimal('{$name}', 10, 2);";
+                    return "\$table->decimal('{$name}', 10, 2){$nullable};";
                 case 'boolean':
                     return "\$table->boolean('{$name}')->default(false);";
                 case 'checkbox':
                     return "\$table->boolean('{$name}')->default(false);";
                 case 'date':
-                    return "\$table->date('{$name}');";
+                    return "\$table->date('{$name}'){$nullable};";
                 case 'text':
                     return "\$table->text('{$name}')->nullable();";
                 case 'longtext':
                     return "\$table->longText('{$name}')->nullable();";
                 case 'email':
-                    return "\$table->string('{$name}');";
+                    return "\$table->string('{$name}'){$nullable};";
                 case 'file':
                     return "\$table->string('{$name}')->nullable();";
                 case 'url':
-                    return "\$table->string('{$name}')->nullable();";
+                    return "\$table->string('{$name}'){$nullable};";
                 default:
-                    return "\$table->string('{$name}');";
+                    return "\$table->string('{$name}'){$nullable};";
             }
         }, $filteredFields));
 
@@ -229,38 +241,46 @@ class CreateCrud extends Command
         $validationRules = implode(",\n            ", array_map(function ($field) {
             $rules = [];
             
+            // Determine if field should be required based on type and database constraints
+            $isRequired = $this->shouldFieldBeRequired($field);
+            $baseRule = $isRequired ? 'required' : 'nullable';
+            
             switch ($field['type']) {
                 case 'string':
+                    $rules[] = $baseRule . '|string|max:255';
+                    break;
                 case 'text':
+                    $rules[] = $baseRule . '|string|max:65535';
+                    break;
                 case 'longtext':
-                    $rules[] = 'nullable|string';
+                    $rules[] = $baseRule . '|string';
                     break;
                 case 'integer':
-                    $rules[] = 'nullable|integer';
+                    $rules[] = $baseRule . '|integer';
                     break;
                 case 'decimal':
-                    $rules[] = 'nullable|numeric';
+                    $rules[] = $baseRule . '|numeric|between:0,999999.99';
                     break;
                 case 'boolean':
-                    $rules[] = 'nullable|boolean';
+                    $rules[] = 'boolean';
                     break;
                 case 'checkbox':
-                    $rules[] = 'nullable|boolean';
+                    $rules[] = 'boolean';
                     break;
                 case 'date':
-                    $rules[] = 'nullable|date';
+                    $rules[] = $baseRule . '|date';
                     break;
                 case 'email':
-                    $rules[] = 'nullable|email';
+                    $rules[] = $baseRule . '|email|max:255';
                     break;
                 case 'file':
-                    $rules[] = 'nullable|file';
+                    $rules[] = 'nullable|file|max:10240'; // 10MB max
                     break;
                 case 'url':
-                    $rules[] = 'nullable|url';
+                    $rules[] = $baseRule . '|url|max:255';
                     break;
                 default:
-                    $rules[] = 'nullable|string';
+                    $rules[] = $baseRule . '|string|max:255';
             }
             
             return "'{$field['name']}' => '" . implode('|', $rules) . "'";
@@ -945,6 +965,31 @@ class CreateCrud extends Command
         }
         
         return implode("\n\n", $tests);
+    }
+
+    protected function shouldFieldBeRequired($field)
+    {
+        // Fields that should typically be required
+        $typicallyRequired = ['string', 'integer', 'decimal', 'email'];
+        
+        // Fields that are usually optional
+        $typicallyOptional = ['text', 'longtext', 'file', 'url', 'date'];
+        
+        // Boolean/checkbox fields are never required (they have default values)
+        if (in_array($field['type'], ['boolean', 'checkbox'])) {
+            return false;
+        }
+        
+        // Check if field name suggests it should be required
+        $requiredKeywords = ['name', 'title', 'email', 'price', 'amount', 'quantity'];
+        foreach ($requiredKeywords as $keyword) {
+            if (str_contains(strtolower($field['name']), $keyword)) {
+                return true;
+            }
+        }
+        
+        // Default based on type
+        return in_array($field['type'], $typicallyRequired);
     }
 
     protected function getInputType($fieldType)

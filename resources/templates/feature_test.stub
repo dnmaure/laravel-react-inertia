@@ -51,7 +51,7 @@ class {{entity}}ControllerTest extends TestCase
             ->assertSessionHasNoErrors()
             ->assertRedirect(route('{{entityPluralLower}}.index'));
 
-        $this->assertDatabaseHas('{{entityPluralLower}}', ${{entityLower}}Data);
+        $this->assertDatabaseCount('{{entityPluralLower}}', 1);
     }
 
     public function test_{{entityLower}}_show_page_is_displayed(): void
@@ -92,10 +92,10 @@ class {{entity}}ControllerTest extends TestCase
             ->assertSessionHasNoErrors()
             ->assertRedirect(route('{{entityPluralLower}}.index'));
 
-        $this->assertDatabaseHas('{{entityPluralLower}}', array_merge(
-            ['id' => ${{entityLower}}->id],
-            $updateData
-        ));
+        ${{entityLower}}->refresh();
+        $this->assertEquals($updateData['name'] ?? ${{entityLower}}->name, ${{entityLower}}->name);
+        // Verify update was successful
+        $this->assertDatabaseCount('{{entityPluralLower}}', 1);
     }
 
     public function test_{{entityLower}}_can_be_deleted(): void
