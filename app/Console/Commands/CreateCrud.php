@@ -20,7 +20,7 @@ class CreateCrud extends Command
 
     protected $availableFieldTypes = [
         'string', 'integer', 'decimal', 'boolean', 'checkbox', 'date', 'text', 
-        'longtext', 'email', 'file', 'url'
+        'longtext', 'email', 'file', 'video', 'image', 'url'
     ];
 
     public function handle()
@@ -208,6 +208,10 @@ class CreateCrud extends Command
                     return "\$table->string('{$name}'){$nullable};";
                 case 'file':
                     return "\$table->string('{$name}')->nullable();";
+                case 'video':
+                    return "\$table->string('{$name}')->nullable();";
+                case 'image':
+                    return "\$table->string('{$name}')->nullable();";
                 case 'url':
                     return "\$table->string('{$name}'){$nullable};";
                 default:
@@ -276,6 +280,12 @@ class CreateCrud extends Command
                 case 'file':
                     $rules[] = 'nullable|file|max:10240'; // 10MB max
                     break;
+                case 'video':
+                    $rules[] = 'nullable|file|mimes:mp4,mov,avi,wmv|max:102400'; // 100MB max for videos
+                    break;
+                case 'image':
+                    $rules[] = 'nullable|file|mimes:jpeg,png,jpg,gif,webp|max:5120'; // 5MB max for images
+                    break;
                 case 'url':
                     $rules[] = $baseRule . '|url|max:255';
                     break;
@@ -290,7 +300,7 @@ class CreateCrud extends Command
         $fileUploadCode = '';
         $dateFormatCode = '';
         foreach ($filteredFields as $field) {
-            if ($field['type'] === 'file') {
+            if (in_array($field['type'], ['file', 'video', 'image'])) {
                 $fileUploadCode .= "
                 // Handle {$field['name']} file upload
                 if (\$request->hasFile('{$field['name']}')) {
@@ -434,9 +444,20 @@ class CreateCrud extends Command
                     $field['name'],
                     $rows
                 ], $template);
-            } elseif ($field['type'] === 'file') {
+            } elseif (in_array($field['type'], ['file', 'video', 'image'])) {
                 $template = File::get(resource_path('templates/form_field_file.stub'));
-                return str_replace('{{fieldName}}', $field['name'], $template);
+                $accept = match($field['type']) {
+                    'video' => 'video/*',
+                    'image' => 'image/*',
+                    default => '*'
+                };
+                return str_replace([
+                    '{{fieldName}}',
+                    '{{acceptType}}'
+                ], [
+                    $field['name'],
+                    $accept
+                ], $template);
             } elseif ($field['type'] === 'date') {
                 $template = File::get(resource_path('templates/form_field_date.stub'));
                 return str_replace('{{fieldName}}', $field['name'], $template);
@@ -459,7 +480,7 @@ class CreateCrud extends Command
         }, $filteredFields));
 
         $formData = implode(",\n        ", array_map(function ($field) {
-            if ($field['type'] === 'file') {
+            if (in_array($field['type'], ['file', 'video', 'image'])) {
                 return "{$field['name']}: null";
             } elseif ($field['type'] === 'date') {
                 return "{$field['name']}: null";
@@ -541,9 +562,20 @@ class CreateCrud extends Command
                     $field['name'],
                     $rows
                 ], $template);
-            } elseif ($field['type'] === 'file') {
+            } elseif (in_array($field['type'], ['file', 'video', 'image'])) {
                 $template = File::get(resource_path('templates/form_field_file.stub'));
-                return str_replace('{{fieldName}}', $field['name'], $template);
+                $accept = match($field['type']) {
+                    'video' => 'video/*',
+                    'image' => 'image/*',
+                    default => '*'
+                };
+                return str_replace([
+                    '{{fieldName}}',
+                    '{{acceptType}}'
+                ], [
+                    $field['name'],
+                    $accept
+                ], $template);
             } elseif ($field['type'] === 'date') {
                 $template = File::get(resource_path('templates/form_field_date.stub'));
                 return str_replace('{{fieldName}}', $field['name'], $template);
@@ -566,7 +598,7 @@ class CreateCrud extends Command
         }, $filteredFields));
 
         $formData = implode(",\n        ", array_map(function ($field) {
-            if ($field['type'] === 'file') {
+            if (in_array($field['type'], ['file', 'video', 'image'])) {
                 return "{$field['name']}: null";
             } elseif ($field['type'] === 'date') {
                 return "{$field['name']}: {$this->entityLower}.{$field['name']} || null";
@@ -636,8 +668,24 @@ class CreateCrud extends Command
             return !in_array($field['name'], $reservedFields);
         });
 
+        // Check if we have video fields for conditional imports
+        $hasVideoFields = !empty(array_filter($filteredFields, function ($field) {
+            return $field['type'] === 'video';
+        }));
+
         $showFields = implode("\n", array_map(function ($field) {
-            if ($field['type'] === 'file') {
+            if ($field['type'] === 'video') {
+                $template = File::get(resource_path('templates/show_field_video.stub'));
+                return str_replace([
+                    '{{fieldName}}',
+                    '{{entityLower}}',
+                    '{{entityPluralLower}}'
+                ], [
+                    $field['name'],
+                    $this->entityLower,
+                    $this->entityPluralLower
+                ], $template);
+            } elseif ($field['type'] === 'file' || $field['type'] === 'image') {
                 $template = File::get(resource_path('templates/show_field_file.stub'));
                 return str_replace([
                     '{{fieldName}}',
@@ -678,19 +726,23 @@ class CreateCrud extends Command
             }
         }, $filteredFields));
 
+        $videoPlayerImport = $hasVideoFields ? "import NativeVideoPlayer from '@/Components/NativeVideoPlayer';" : "";
+
         $template = File::get(resource_path('templates/react_show.stub'));
         $showContent = str_replace([
             '{{entityName}}',
             '{{entityPlural}}',
             '{{entityPluralLower}}',
             '{{entityLower}}',
-            '{{showFields}}'
+            '{{showFields}}',
+            '{{videoPlayerImport}}'
         ], [
             $this->entityName,
             $this->entityPlural,
             $this->entityPluralLower,
             $this->entityLower,
-            $showFields
+            $showFields,
+            $videoPlayerImport
         ], $template);
 
         $showPath = resource_path("js/Pages/{$this->entityPlural}/Show.jsx");
@@ -739,17 +791,20 @@ class CreateCrud extends Command
             return !in_array($field['name'], $reservedFields);
         });
 
-        // Generate test data
+        // Generate test data (exclude file fields as they need actual files)
+        $nonFileFields = array_filter($filteredFields, function ($field) {
+            return !in_array($field['type'], ['file', 'video', 'image']);
+        });
         $testData = implode(",\n            ", array_map(function ($field) {
             $value = $this->getTestValue($field['type']);
             return "'{$field['name']}' => {$value}";
-        }, $filteredFields));
+        }, $nonFileFields));
 
-        // Generate update data
+        // Generate update data (exclude file fields as they need actual files)
         $updateData = implode(",\n            ", array_map(function ($field) {
             $value = $this->getTestValue($field['type'], true);
             return "'{$field['name']}' => {$value}";
-        }, $filteredFields));
+        }, $nonFileFields));
 
         // Generate fillable fields array
         $fillableFields = implode(",\n            ", array_map(function ($field) {
@@ -786,17 +841,20 @@ class CreateCrud extends Command
             return !in_array($field['name'], $reservedFields);
         });
 
-        // Generate test data
+        // Generate test data (exclude file fields as they need actual files)
+        $nonFileFields = array_filter($filteredFields, function ($field) {
+            return !in_array($field['type'], ['file', 'video', 'image']);
+        });
         $testData = implode(",\n            ", array_map(function ($field) {
             $value = $this->getTestValue($field['type']);
             return "'{$field['name']}' => {$value}";
-        }, $filteredFields));
+        }, $nonFileFields));
 
-        // Generate update data
+        // Generate update data (exclude file fields as they need actual files)
         $updateData = implode(",\n            ", array_map(function ($field) {
             $value = $this->getTestValue($field['type'], true);
             return "'{$field['name']}' => {$value}";
-        }, $filteredFields));
+        }, $nonFileFields));
 
         // Generate validation tests
         $validationTests = $this->generateValidationTests($filteredFields);
@@ -847,6 +905,10 @@ class CreateCrud extends Command
                 return '$this->faker->date()';
             case 'file':
                 return "'test-file.jpg'";
+            case 'video':
+                return "'test-video.mp4'";
+            case 'image':
+                return "'test-image.jpg'";
             default:
                 return '$this->faker->word()';
         }
@@ -876,6 +938,10 @@ class CreateCrud extends Command
                 return $alternate ? "'https://updated.example.com'" : "'https://example.com'";
             case 'file':
                 return $alternate ? "'updated-file.jpg'" : "'test-file.jpg'";
+            case 'video':
+                return $alternate ? "'updated-video.mp4'" : "'test-video.mp4'";
+            case 'image':
+                return $alternate ? "'updated-image.jpg'" : "'test-image.jpg'";
             default:
                 return $alternate ? "'updated'" : "'test'";
         }
@@ -1037,7 +1103,7 @@ class CreateCrud extends Command
         }
 
         $newRoutes = "
-    Route::resource('{$this->entityPluralLower}', {$this->entityName}Controller::class);";
+    Route::resource('{$this->entityPluralLower}', {$this->entityName}Controller::class)->parameters(['{$this->entityPluralLower}' => '{$this->entityLower}']);";
 
         if (!str_contains($routes, $newRoutes)) {
             // Find the auth middleware group and add the route inside it

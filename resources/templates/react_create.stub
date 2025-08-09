@@ -1,6 +1,7 @@
 import { Head, useForm } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { showToast } from '@/lib/toast';
+import FileUploadWithProgress from '@/Components/FileUploadWithProgress';
 {{datePickerImport}}
 {{switchImport}}
 {{checkboxImport}}
