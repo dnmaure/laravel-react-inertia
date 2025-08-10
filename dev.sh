@@ -120,25 +120,62 @@ revert_entity() {
         echo "   ✓ Removed Feature Test: tests/Feature/${ENTITY_NAME}ControllerTest.php"
     fi
     
-    # Remove React components directory
-    if [ -d "resources/js/Pages/$ENTITY_PLURAL" ]; then
+    # Remove React components directory (check both singular and plural)
+    if [ -d "resources/js/Pages/$ENTITY_NAME" ]; then
+        rm -rf "resources/js/Pages/$ENTITY_NAME"
+        echo "   ✓ Removed React components: resources/js/Pages/$ENTITY_NAME/"
+    elif [ -d "resources/js/Pages/$ENTITY_PLURAL" ]; then
         rm -rf "resources/js/Pages/$ENTITY_PLURAL"
         echo "   ✓ Removed React components: resources/js/Pages/$ENTITY_PLURAL/"
     fi
     
-    # Remove the latest migration file for this entity
-    MIGRATION_FILE=$(ls -t database/migrations/*_create_${ENTITY_PLURAL_LOWER}_table.php 2>/dev/null | head -1)
-    if [ -f "$MIGRATION_FILE" ]; then
-        rm "$MIGRATION_FILE"
-        echo "   ✓ Removed Migration: $MIGRATION_FILE"
+    # Remove all migration files for this entity
+    MIGRATION_FILES=$(ls database/migrations/*_create_${ENTITY_PLURAL_LOWER}_table.php 2>/dev/null)
+    if [ -n "$MIGRATION_FILES" ]; then
+        for file in $MIGRATION_FILES; do
+            rm "$file"
+            echo "   ✓ Removed Migration: $file"
+        done
     fi
 
-    echo -e "${RED}⚠️  Manual cleanup required:${NC}"
-    echo "   - Remove routes from routes/web.php"
-    echo "   - Remove navigation item from resources/js/Components/AppSidebar.jsx"
-    echo "   - Remove use statement from routes/web.php"
+    # Remove routes from web.php
+    echo -e "${YELLOW}🗑️  Cleaning up routes and navigation...${NC}"
     
+    # Remove the resource route line
+    if [ -f "routes/web.php" ]; then
+        # Create a backup
+        cp routes/web.php routes/web.php.backup
+        # Remove the resource route line
+        sed -i.bak "/Route::resource('${ENTITY_PLURAL_LOWER}', ${ENTITY_NAME}Controller::class/d" routes/web.php
+        # Remove the use statement
+        sed -i.bak "/use App\\Http\\Controllers\\${ENTITY_NAME}Controller;/d" routes/web.php
+        # Remove any empty lines that might be left
+        sed -i.bak '/^[[:space:]]*$/d' routes/web.php
+        echo "   ✓ Cleaned up routes/web.php"
+    fi
+
+    # Remove navigation item from AppSidebar.jsx
+    if [ -f "resources/js/Components/AppSidebar.jsx" ]; then
+        # Create a backup
+        cp resources/js/Components/AppSidebar.jsx resources/js/Components/AppSidebar.jsx.backup
+        # Remove the navigation item
+        sed -i.bak "/{ name: '${ENTITY_PLURAL}', href: route('${ENTITY_PLURAL_LOWER}.index'), current: route().current('${ENTITY_PLURAL_LOWER}.*') },/d" resources/js/Components/AppSidebar.jsx
+        # Remove any empty lines that might be left
+        sed -i.bak '/^[[:space:]]*$/d' resources/js/Components/AppSidebar.jsx
+        echo "   ✓ Cleaned up AppSidebar.jsx"
+    fi
+
+    # Remove columns file if it exists (check both singular and plural)
+    if [ -f "resources/js/Pages/$ENTITY_NAME/columns.jsx" ]; then
+        rm "resources/js/Pages/$ENTITY_NAME/columns.jsx"
+        echo "   ✓ Removed columns.jsx"
+    elif [ -f "resources/js/Pages/$ENTITY_PLURAL/columns.jsx" ]; then
+        rm "resources/js/Pages/$ENTITY_PLURAL/columns.jsx"
+        echo "   ✓ Removed columns.jsx"
+    fi
+
     echo -e "${GREEN}✅ Entity $ENTITY_NAME reverted successfully!${NC}"
+    echo -e "${YELLOW}📝 Note: Backup files created as .backup and .bak${NC}"
 }
 
 # Main script logic

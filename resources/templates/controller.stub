@@ -53,10 +53,10 @@ class {{entity}}Controller extends Controller
     public function update(Request $request, {{entity}} ${{entityLower}})
     {
         $request->validate([
-            {{fieldsValidation}},
+            {{updateFieldsValidation}},
         ]);
 
-        $data = $request->all();{{fileUploadCode}}{{dateFormatCode}}
+        $data = $request->except([{{fileFieldsList}}]); // Exclude file fields from bulk assignment{{fileUploadCode}}{{dateFormatCode}}
 
         ${{entityLower}}->update($data);
 

@@ -296,11 +296,84 @@ class CreateCrud extends Command
             return "'{$field['name']}' => '" . implode('|', $rules) . "'";
         }, $filteredFields));
 
+        // Generate update validation rules (more flexible for companion fields)
+        $updateValidationRules = implode(",\n            ", array_map(function ($field) {
+            $rules = [];
+            
+            // Check if this is a companion field to file uploads
+            $hasFileFields = collect($this->fields)->contains(fn($f) => in_array($f['type'], ['file', 'video', 'image']));
+            
+            // Identify companion fields based on common naming patterns and presence of file fields
+            $isCompanionField = false;
+            if ($hasFileFields) {
+                // Common companion field patterns for file uploads
+                $companionPatterns = [
+                    'name', 'title', 'label', 'caption', 'description', 'alt_text', 'alt',
+                    'file_size', 'size', 'file_name', 'filename', 'original_name', 'originalname',
+                    'mime_type', 'mimetype', 'extension', 'ext', 'path', 'url', 'link'
+                ];
+                $isCompanionField = in_array($field['name'], $companionPatterns);
+            }
+            
+            // Determine if field should be required based on type and database constraints
+            $isRequired = $this->shouldFieldBeRequired($field);
+            // For updates, make companion fields nullable
+            $baseRule = ($isRequired && !$isCompanionField) ? 'required' : 'nullable';
+            
+            switch ($field['type']) {
+                case 'string':
+                    $rules[] = $baseRule . '|string|max:255';
+                    break;
+                case 'text':
+                    $rules[] = $baseRule . '|string|max:65535';
+                    break;
+                case 'longtext':
+                    $rules[] = $baseRule . '|string';
+                    break;
+                case 'integer':
+                    $rules[] = $baseRule . '|integer';
+                    break;
+                case 'decimal':
+                    $rules[] = $baseRule . '|numeric|between:0,999999.99';
+                    break;
+                case 'boolean':
+                    $rules[] = 'boolean';
+                    break;
+                case 'checkbox':
+                    $rules[] = 'boolean';
+                    break;
+                case 'date':
+                    $rules[] = $baseRule . '|date';
+                    break;
+                case 'email':
+                    $rules[] = $baseRule . '|email|max:255';
+                    break;
+                case 'file':
+                    $rules[] = 'nullable|file|max:10240'; // 10MB max
+                    break;
+                case 'video':
+                    $rules[] = 'nullable|file|mimes:mp4,mov,avi,wmv|max:102400'; // 100MB max for videos
+                    break;
+                case 'image':
+                    $rules[] = 'nullable|file|mimes:jpeg,png,jpg,gif,webp|max:5120'; // 5MB max for images
+                    break;
+                case 'url':
+                    $rules[] = $baseRule . '|url|max:255';
+                    break;
+                default:
+                    $rules[] = $baseRule . '|string|max:255';
+            }
+            
+            return "'{$field['name']}' => '" . implode('|', $rules) . "'";
+        }, $filteredFields));
+
         // Generate file upload handling code
         $fileUploadCode = '';
         $dateFormatCode = '';
+        $fileFields = [];
         foreach ($filteredFields as $field) {
             if (in_array($field['type'], ['file', 'video', 'image'])) {
+                $fileFields[] = "'{$field['name']}'";
                 $fileUploadCode .= "
                 // Handle {$field['name']} file upload
                 if (\$request->hasFile('{$field['name']}')) {
@@ -319,6 +392,8 @@ class CreateCrud extends Command
             }
         }
 
+        $fileFieldsList = implode(', ', $fileFields);
+
         $template = File::get(resource_path('templates/controller.stub'));
         $content = str_replace([
             '{{entity}}',
@@ -326,7 +401,9 @@ class CreateCrud extends Command
             '{{entityPlural}}',
             '{{entityPluralLower}}',
             '{{fieldsValidation}}',
+            '{{updateFieldsValidation}}',
             '{{fileUploadCode}}',
+            '{{fileFieldsList}}',
             '{{dateFormatCode}}'
         ], [
             $this->entityName,
@@ -334,7 +411,9 @@ class CreateCrud extends Command
             $this->entityPlural,
             $this->entityPluralLower,
             $validationRules,
+            $updateValidationRules,
             $fileUploadCode,
+            $fileFieldsList,
             $dateFormatCode
         ], $template);
 

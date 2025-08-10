@@ -89,4 +89,8 @@ jspm_packages/
 .dynamodb/
 
 # TernJS port file
-.tern-port 
+.tern-port
+
+# Backup files from revert command
+*.backup
+*.bak 
