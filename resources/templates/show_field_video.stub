@@ -1,0 +1,15 @@
+                        <div className="mb-4">
+                            <label className="block text-gray-700 text-sm font-bold mb-2">
+                                {{fieldName}}
+                            </label>
+                            {{{entityLower}}.{{fieldName}} ? (
+                                <NativeVideoPlayer 
+                                    url={`/storage/{{entityPluralLower}}/${{{entityLower}}.{{fieldName}}}`}
+                                    width="100%"
+                                    height="300px"
+                                    controls={true}
+                                />
+                            ) : (
+                                <p className="text-gray-500">No video uploaded</p>
+                            )}
+                        </div>

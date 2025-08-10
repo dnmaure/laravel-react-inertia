@@ -4,338 +4,424 @@ namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\File;
-use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
-/**
- * Use example: php artisan create:crud Product --fields="name:string,price:decimal,stock:integer"
- */
 class CreateCrud extends Command
 {
+    protected $signature = 'create:crud {entity} {--fields=}';
+    protected $description = 'Create a complete CRUD for an entity with React components';
+
     protected $entityName;
-    protected $fields;
     protected $entityLower;
     protected $entityPlural;
     protected $entityPluralLower;
+    protected $fields = [];
 
-    /**
-     * The name and signature of the console command.
-     *
-     * @var string
-     */
-    protected $signature = 'create:crud {name? : The entity name} {--fields=}';
+    protected $availableFieldTypes = [
+        'string', 'integer', 'decimal', 'boolean', 'checkbox', 'date', 'text', 
+        'longtext', 'email', 'file', 'video', 'image', 'url'
+    ];
 
-    /**
-     * The console command description.
-     *
-     * @var string
-     */
-    protected $description = 'Generate complete CRUD scaffolding for Laravel React with Inertia';
-
-    /**
-     * Execute the console command.
-     *
-     * @return int
-     */
     public function handle()
     {
-        $this->entityName = $this->argument('name') ?? $this->ask('What is the entity name?');
+        $this->entityName = ucfirst($this->argument('entity'));
         $this->entityLower = strtolower($this->entityName);
         $this->entityPlural = Str::plural($this->entityName);
         $this->entityPluralLower = strtolower($this->entityPlural);
-        
-        // Define available field types for Laravel
-        $availableFieldTypes = ['string', 'integer', 'decimal', 'boolean', 'date', 'text', 'email'];
-        
-        // Ask for fields with a select menu
-        $fields = $this->option('fields') ?? $this->askWithMenu($availableFieldTypes);
 
-        // validate fields
-        if (empty($fields)) {
-            $this->error('Fields cannot be empty');
-            return Command::FAILURE;
+        $this->info("Creating CRUD for {$this->entityName}...");
+
+        // Get fields from user
+        $fieldsInput = $this->option('fields');
+        if (!$fieldsInput) {
+            $this->fields = $this->askForFields();
+        } else {
+            $this->fields = $this->parseFields($fieldsInput);
         }
 
-        // Parse fields
-        $this->fields = $this->parseFields($fields);
-
-        // Generate Model
+        // Generate all components
         $this->generateModel();
-
-        // Generate Migration
         $this->generateMigration();
-
-        // Generate Controller
         $this->generateController();
-
-        // Generate React Components
+        $this->generateFactory();
+        $this->generateTests();
         $this->generateReactComponents();
-
-        // Add web routes
         $this->addWebRoutes();
-
-        // Update navigation
         $this->updateNavigation();
 
-        // Run Migration
-        $this->call('migrate');
-
-        // Build assets
-        $this->info('Building frontend assets...');
-        $this->info('Please run: docker-compose exec node npm run build');
+        // Run migration if table doesn't exist
+        $this->runMigrationIfTableDoesNotExist();
 
         $this->info("CRUD for {$this->entityName} created successfully!");
-        $this->info("Access your CRUD at: /{$this->entityPluralLower}");
-        
-        return Command::SUCCESS;
+        $this->info("Generated components:");
+        $this->info("- Model, Migration, Controller");
+        $this->info("- Factory for testing");
+        $this->info("- Unit and Feature tests");
+        $this->info("- React components (Index, Create, Edit, Show)");
+        $this->info("- Routes and navigation");
+        $this->info("");
+        $this->info("Next steps:");
+        $this->info("- Run tests: php artisan test --filter={$this->entityName}");
+        $this->info("- Don't forget to run: php artisan storage:link");
     }
 
-    /**
-     * Parse the fields option into an array of field definitions.
-     *
-     * @param string|null $fields
-     * @return array
-     */
-    protected function parseFields($fields)
+    protected function askForFields()
     {
-        $parsedFields = [];
-        if ($fields) {
-            $fieldsArray = explode(',', $fields);
-            foreach ($fieldsArray as $field) {
-                [$name, $type] = explode(':', $field);
-                $isRequired = false;
+        $fields = [];
+        $this->info("Enter fields for {$this->entityName} (press Enter when done):");
 
-                // Check if the field has a "required" flag
-                if (strpos($type, '|required') !== false) {
-                    $type = str_replace('|required', '', $type);
-                    $isRequired = true;
-                }
+        while (true) {
+            $fieldName = $this->ask("Field name (or press Enter to finish)");
+            if (empty($fieldName)) {
+                break;
+            }
 
-                $parsedFields[] = [
-                    'type' => $type,
-                    'name' => $name,
-                    'required' => $isRequired,
+            $fieldType = $this->askWithMenu($this->availableFieldTypes, "Field type for '{$fieldName}'");
+
+            $fields[] = [
+                'name' => $fieldName,
+                'type' => $fieldType,
+            ];
+        }
+
+        return $fields;
+    }
+
+    protected function parseFields($fieldsString)
+    {
+        $fields = [];
+        $fieldPairs = explode(',', $fieldsString);
+
+        foreach ($fieldPairs as $pair) {
+            $parts = explode(':', trim($pair));
+            if (count($parts) === 2) {
+                $fields[] = [
+                    'name' => trim($parts[0]),
+                    'type' => trim($parts[1]),
                 ];
             }
         }
-        Log::info('Parsed fields:', $parsedFields);
-        return $parsedFields;
+
+        return $fields;
     }
 
-    /**
-     * Generate the Model
-     */
+    protected function runMigrationIfTableDoesNotExist()
+    {
+        if (!Schema::hasTable($this->entityPluralLower)) {
+            $this->call('migrate');
+            $this->info("Migration executed successfully.");
+        } else {
+            $this->info("Table '{$this->entityPluralLower}' already exists. Skipping migration.");
+        }
+    }
+
     protected function generateModel()
     {
+        // Filter out reserved field names
+        $reservedFields = ['id', 'created_at', 'updated_at'];
+        $filteredFields = array_filter($this->fields, function ($field) use ($reservedFields) {
+            return !in_array($field['name'], $reservedFields);
+        });
+
         $fillableFields = implode(",\n        ", array_map(function ($field) {
             return "'{$field['name']}'";
-        }, $this->fields));
+        }, $filteredFields));
 
-        $modelContent = "<?php
+        // Generate casts for date and boolean fields
+        $dateFields = array_filter($filteredFields, function ($field) {
+            return $field['type'] === 'date';
+        });
+        
+        $booleanFields = array_filter($filteredFields, function ($field) {
+            return $field['type'] === 'boolean' || $field['type'] === 'checkbox';
+        });
+        
+        $castFields = [];
+        foreach ($dateFields as $field) {
+            $castFields[] = "'{$field['name']}' => 'date'";
+        }
+        foreach ($booleanFields as $field) {
+            $castFields[] = "'{$field['name']}' => 'boolean'";
+        }
+        
+        $dateCasts = '';
+        if (!empty($castFields)) {
+            $casts = implode(",\n        ", $castFields);
+            $dateCasts = "
 
-namespace App\Models;
+    protected \$casts = [
+        {$casts},
+    ];";
+        }
 
-use Illuminate\Database\Eloquent\Model;
-
-class {$this->entityName} extends Model
-{
-    protected \$fillable = [
-        {$fillableFields},
-    ];
-}";
+        $template = File::get(resource_path('templates/model.stub'));
+        $content = str_replace([
+            '{{entity}}',
+            '{{entityPluralLower}}',
+            '{{fieldsFillable}}',
+            '{{dateCasts}}'
+        ], [
+            $this->entityName,
+            $this->entityPluralLower,
+            $fillableFields,
+            $dateCasts
+        ], $template);
 
         $modelPath = app_path("Models/{$this->entityName}.php");
-        File::put($modelPath, $modelContent);
+        File::put($modelPath, $content);
         $this->info("Model created: {$modelPath}");
     }
 
-    /**
-     * Generate the Migration
-     */
     protected function generateMigration()
     {
+        // Filter out reserved field names
+        $reservedFields = ['id', 'created_at', 'updated_at'];
+        $filteredFields = array_filter($this->fields, function ($field) use ($reservedFields) {
+            return !in_array($field['name'], $reservedFields);
+        });
+
         $migrationFields = implode("\n            ", array_map(function ($field) {
             $type = $field['type'];
             $name = $field['name'];
+            $isRequired = $this->shouldFieldBeRequired($field);
+            $nullable = $isRequired ? '' : '->nullable()';
             
             switch ($type) {
                 case 'string':
-                    return "\$table->string('{$name}');";
+                    return "\$table->string('{$name}'){$nullable};";
                 case 'integer':
-                    return "\$table->integer('{$name}');";
+                    return "\$table->integer('{$name}'){$nullable};";
                 case 'decimal':
-                    return "\$table->decimal('{$name}', 10, 2);";
+                    return "\$table->decimal('{$name}', 10, 2){$nullable};";
                 case 'boolean':
                     return "\$table->boolean('{$name}')->default(false);";
+                case 'checkbox':
+                    return "\$table->boolean('{$name}')->default(false);";
                 case 'date':
-                    return "\$table->date('{$name}');";
+                    return "\$table->date('{$name}'){$nullable};";
                 case 'text':
                     return "\$table->text('{$name}')->nullable();";
+                case 'longtext':
+                    return "\$table->longText('{$name}')->nullable();";
                 case 'email':
-                    return "\$table->string('{$name}');";
+                    return "\$table->string('{$name}'){$nullable};";
+                case 'file':
+                    return "\$table->string('{$name}')->nullable();";
+                case 'video':
+                    return "\$table->string('{$name}')->nullable();";
+                case 'image':
+                    return "\$table->string('{$name}')->nullable();";
+                case 'url':
+                    return "\$table->string('{$name}'){$nullable};";
                 default:
-                    return "\$table->string('{$name}');";
+                    return "\$table->string('{$name}'){$nullable};";
             }
-        }, $this->fields));
+        }, $filteredFields));
 
-        $migrationContent = "<?php
-
-use Illuminate\Database\Migrations\Migration;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
-
-return new class extends Migration
-{
-    /**
-     * Run the migrations.
-     */
-    public function up(): void
-    {
-        Schema::create('{$this->entityPluralLower}', function (Blueprint \$table) {
-            \$table->id();
-            {$migrationFields}
-            \$table->timestamps();
-        });
-    }
-
-    /**
-     * Reverse the migrations.
-     */
-    public function down(): void
-    {
-        Schema::dropIfExists('{$this->entityPluralLower}');
-    }
-};";
+        $template = File::get(resource_path('templates/migration.stub'));
+        $content = str_replace([
+            '{{entityPlural}}',
+            '{{migrationFields}}'
+        ], [
+            $this->entityPluralLower,
+            $migrationFields
+        ], $template);
 
         $migrationFileName = now()->format('Y_m_d_His') . "_create_{$this->entityPluralLower}_table.php";
         $migrationPath = database_path("migrations/{$migrationFileName}");
-        File::put($migrationPath, $migrationContent);
+        File::put($migrationPath, $content);
         $this->info("Migration created: {$migrationPath}");
     }
 
-    /**
-     * Generate the Controller
-     */
     protected function generateController()
     {
+        // Filter out reserved field names
+        $reservedFields = ['id', 'created_at', 'updated_at'];
+        $filteredFields = array_filter($this->fields, function ($field) use ($reservedFields) {
+            return !in_array($field['name'], $reservedFields);
+        });
+
         $validationRules = implode(",\n            ", array_map(function ($field) {
             $rules = [];
             
-            if ($field['required']) {
-                $rules[] = 'required';
-            } else {
-                $rules[] = 'nullable';
-            }
+            // Determine if field should be required based on type and database constraints
+            $isRequired = $this->shouldFieldBeRequired($field);
+            $baseRule = $isRequired ? 'required' : 'nullable';
             
             switch ($field['type']) {
                 case 'string':
-                    $rules[] = 'string';
-                    $rules[] = 'max:255';
+                    $rules[] = $baseRule . '|string|max:255';
+                    break;
+                case 'text':
+                    $rules[] = $baseRule . '|string|max:65535';
+                    break;
+                case 'longtext':
+                    $rules[] = $baseRule . '|string';
                     break;
                 case 'integer':
-                    $rules[] = 'integer';
-                    $rules[] = 'min:0';
+                    $rules[] = $baseRule . '|integer';
                     break;
                 case 'decimal':
-                    $rules[] = 'numeric';
-                    $rules[] = 'min:0';
+                    $rules[] = $baseRule . '|numeric|between:0,999999.99';
                     break;
                 case 'boolean':
                     $rules[] = 'boolean';
                     break;
-                case 'date':
-                    $rules[] = 'date';
+                case 'checkbox':
+                    $rules[] = 'boolean';
                     break;
-                case 'text':
-                    $rules[] = 'string';
+                case 'date':
+                    $rules[] = $baseRule . '|date';
                     break;
                 case 'email':
-                    $rules[] = 'email';
+                    $rules[] = $baseRule . '|email|max:255';
                     break;
+                case 'file':
+                    $rules[] = 'nullable|file|max:10240'; // 10MB max
+                    break;
+                case 'video':
+                    $rules[] = 'nullable|file|mimes:mp4,mov,avi,wmv|max:102400'; // 100MB max for videos
+                    break;
+                case 'image':
+                    $rules[] = 'nullable|file|mimes:jpeg,png,jpg,gif,webp|max:5120'; // 5MB max for images
+                    break;
+                case 'url':
+                    $rules[] = $baseRule . '|url|max:255';
+                    break;
+                default:
+                    $rules[] = $baseRule . '|string|max:255';
             }
             
             return "'{$field['name']}' => '" . implode('|', $rules) . "'";
-        }, $this->fields));
+        }, $filteredFields));
 
-        $controllerContent = "<?php
+        // Generate update validation rules (more flexible for companion fields)
+        $updateValidationRules = implode(",\n            ", array_map(function ($field) {
+            $rules = [];
+            
+            // Check if this is a companion field to file uploads
+            $hasFileFields = collect($this->fields)->contains(fn($f) => in_array($f['type'], ['file', 'video', 'image']));
+            
+            // Identify companion fields based on common naming patterns and presence of file fields
+            $isCompanionField = false;
+            if ($hasFileFields) {
+                // Common companion field patterns for file uploads
+                $companionPatterns = [
+                    'name', 'title', 'label', 'caption', 'description', 'alt_text', 'alt',
+                    'file_size', 'size', 'file_name', 'filename', 'original_name', 'originalname',
+                    'mime_type', 'mimetype', 'extension', 'ext', 'path', 'url', 'link'
+                ];
+                $isCompanionField = in_array($field['name'], $companionPatterns);
+            }
+            
+            // Determine if field should be required based on type and database constraints
+            $isRequired = $this->shouldFieldBeRequired($field);
+            // For updates, make companion fields nullable
+            $baseRule = ($isRequired && !$isCompanionField) ? 'required' : 'nullable';
+            
+            switch ($field['type']) {
+                case 'string':
+                    $rules[] = $baseRule . '|string|max:255';
+                    break;
+                case 'text':
+                    $rules[] = $baseRule . '|string|max:65535';
+                    break;
+                case 'longtext':
+                    $rules[] = $baseRule . '|string';
+                    break;
+                case 'integer':
+                    $rules[] = $baseRule . '|integer';
+                    break;
+                case 'decimal':
+                    $rules[] = $baseRule . '|numeric|between:0,999999.99';
+                    break;
+                case 'boolean':
+                    $rules[] = 'boolean';
+                    break;
+                case 'checkbox':
+                    $rules[] = 'boolean';
+                    break;
+                case 'date':
+                    $rules[] = $baseRule . '|date';
+                    break;
+                case 'email':
+                    $rules[] = $baseRule . '|email|max:255';
+                    break;
+                case 'file':
+                    $rules[] = 'nullable|file|max:10240'; // 10MB max
+                    break;
+                case 'video':
+                    $rules[] = 'nullable|file|mimes:mp4,mov,avi,wmv|max:102400'; // 100MB max for videos
+                    break;
+                case 'image':
+                    $rules[] = 'nullable|file|mimes:jpeg,png,jpg,gif,webp|max:5120'; // 5MB max for images
+                    break;
+                case 'url':
+                    $rules[] = $baseRule . '|url|max:255';
+                    break;
+                default:
+                    $rules[] = $baseRule . '|string|max:255';
+            }
+            
+            return "'{$field['name']}' => '" . implode('|', $rules) . "'";
+        }, $filteredFields));
 
-namespace App\Http\Controllers;
+        // Generate file upload handling code
+        $fileUploadCode = '';
+        $dateFormatCode = '';
+        $fileFields = [];
+        foreach ($filteredFields as $field) {
+            if (in_array($field['type'], ['file', 'video', 'image'])) {
+                $fileFields[] = "'{$field['name']}'";
+                $fileUploadCode .= "
+                // Handle {$field['name']} file upload
+                if (\$request->hasFile('{$field['name']}')) {
+                    \$file = \$request->file('{$field['name']}');
+                    \$fileName = time() . '_' . \$file->getClientOriginalName();
+                    \$file->storeAs('{$this->entityPluralLower}', \$fileName, 'public');
+                    \$data['{$field['name']}'] = \$fileName;
+                }";
+            }
+            if ($field['type'] === 'date') {
+                $dateFormatCode .= "
+                // Format {$field['name']} to Y-m-d format for database
+                if (isset(\$data['{$field['name']}']) && \$data['{$field['name']}']) {
+                    \$data['{$field['name']}'] = date('Y-m-d', strtotime(\$data['{$field['name']}']));
+                }";
+            }
+        }
 
-use App\Models\\{$this->entityName};
-use Illuminate\Http\Request;
-use Inertia\Inertia;
+        $fileFieldsList = implode(', ', $fileFields);
 
-class {$this->entityName}Controller extends Controller
-{
-    public function index()
-    {
-        \${$this->entityPluralLower} = {$this->entityName}::latest()->paginate(10);
-        
-        return Inertia::render('{$this->entityPlural}/Index', [
-            '{$this->entityPluralLower}' => \${$this->entityPluralLower},
-        ]);
-    }
-
-    public function create()
-    {
-        return Inertia::render('{$this->entityPlural}/Create');
-    }
-
-    public function store(Request \$request)
-    {
-        \$request->validate([
-            {$validationRules},
-        ]);
-
-        {$this->entityName}::create(\$request->all());
-
-        return redirect()->route('{$this->entityPluralLower}.index')
-            ->with('success', '{$this->entityName} created successfully.');
-    }
-
-    public function show({$this->entityName} \${$this->entityLower})
-    {
-        return Inertia::render('{$this->entityPlural}/Show', [
-            '{$this->entityLower}' => \${$this->entityLower},
-        ]);
-    }
-
-    public function edit({$this->entityName} \${$this->entityLower})
-    {
-        return Inertia::render('{$this->entityPlural}/Edit', [
-            '{$this->entityLower}' => \${$this->entityLower},
-        ]);
-    }
-
-    public function update(Request \$request, {$this->entityName} \${$this->entityLower})
-    {
-        \$request->validate([
-            {$validationRules},
-        ]);
-
-        \${$this->entityLower}->update(\$request->all());
-
-        return redirect()->route('{$this->entityPluralLower}.index')
-            ->with('success', '{$this->entityName} updated successfully.');
-    }
-
-    public function destroy({$this->entityName} \${$this->entityLower})
-    {
-        \${$this->entityLower}->delete();
-
-        return redirect()->route('{$this->entityPluralLower}.index')
-            ->with('success', '{$this->entityName} deleted successfully.');
-    }
-}";
+        $template = File::get(resource_path('templates/controller.stub'));
+        $content = str_replace([
+            '{{entity}}',
+            '{{entityLower}}',
+            '{{entityPlural}}',
+            '{{entityPluralLower}}',
+            '{{fieldsValidation}}',
+            '{{updateFieldsValidation}}',
+            '{{fileUploadCode}}',
+            '{{fileFieldsList}}',
+            '{{dateFormatCode}}'
+        ], [
+            $this->entityName,
+            $this->entityLower,
+            $this->entityPlural,
+            $this->entityPluralLower,
+            $validationRules,
+            $updateValidationRules,
+            $fileUploadCode,
+            $fileFieldsList,
+            $dateFormatCode
+        ], $template);
 
         $controllerPath = app_path("Http/Controllers/{$this->entityName}Controller.php");
-        File::put($controllerPath, $controllerContent);
+        File::put($controllerPath, $content);
         $this->info("Controller created: {$controllerPath}");
     }
 
-    /**
-     * Generate React Components
-     */
     protected function generateReactComponents()
     {
         $componentsDir = resource_path("js/Pages/{$this->entityPlural}");
@@ -358,159 +444,175 @@ class {$this->entityName}Controller extends Controller
 
     protected function generateIndexComponent()
     {
-        $tableHeaders = implode("\n                                            ", array_map(function ($field) {
-            return "<th className=\"px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider\">{$field['name']}</th>";
-        }, $this->fields));
+        // Filter out reserved field names
+        $reservedFields = ['id', 'created_at', 'updated_at'];
+        $filteredFields = array_filter($this->fields, function ($field) use ($reservedFields) {
+            return !in_array($field['name'], $reservedFields);
+        });
 
-        $tableCells = implode("\n                                                ", array_map(function ($field) {
-            return "<td className=\"px-6 py-4 whitespace-nowrap text-sm text-gray-900\">\n                                                    {{$this->entityLower}.{$field['name']}}\n                                                </td>";
-        }, $this->fields));
+        // Generate columns for data table
+        $columns = implode("\n", array_map(function ($field) {
+            if ($field['type'] === 'boolean' || $field['type'] === 'checkbox') {
+                $template = File::get(resource_path('templates/column_boolean.stub'));
+            } elseif ($field['type'] === 'date') {
+                $template = File::get(resource_path('templates/column_date.stub'));
+            } elseif ($field['type'] === 'url') {
+                $template = File::get(resource_path('templates/column_url.stub'));
+            } else {
+                $template = File::get(resource_path('templates/column_text.stub'));
+            }
+            return str_replace('{{fieldName}}', $field['name'], $template);
+        }, $filteredFields));
 
-        $indexContent = "import { Head, Link } from '@inertiajs/react';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-
-export default function Index({ auth, {$this->entityPluralLower} }) {
-    return (
-        <AuthenticatedLayout
-            user={auth.user}
-            header={<h2 className=\"font-semibold text-xl text-gray-800 leading-tight\">{$this->entityPlural}</h2>}
-        >
-            <Head title=\"{$this->entityPlural}\" />
-
-            <div className=\"py-12\">
-                <div className=\"max-w-7xl mx-auto sm:px-6 lg:px-8\">
-                    <div className=\"bg-white overflow-hidden shadow-sm sm:rounded-lg\">
-                        <div className=\"p-6 text-gray-900\">
-                            <div className=\"flex justify-between items-center mb-6\">
-                                <h3 className=\"text-lg font-semibold\">{$this->entityName} Management</h3>
-                                <Link href={route('{$this->entityPluralLower}.create')} className=\"bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded\">
-                                    Add {$this->entityName}
-                                </Link>
-                            </div>
-
-                            <div className=\"overflow-x-auto\">
-                                <table className=\"min-w-full divide-y divide-gray-200\">
-                                    <thead className=\"bg-gray-50\">
-                                        <tr>
-                                            {$tableHeaders}
-                                            <th className=\"px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider\">Actions</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className=\"bg-white divide-y divide-gray-200\">
-                                        {{$this->entityPluralLower}.data.map(({$this->entityLower}) => (
-                                            <tr key={{$this->entityLower}.id}>
-                                                {$tableCells}
-                                                <td className=\"px-6 py-4 whitespace-nowrap text-sm font-medium\">
-                                                    <div className=\"flex space-x-2\">
-                                                        <Link href={route('{$this->entityPluralLower}.show', {$this->entityLower}.id)} className=\"text-blue-600 hover:text-blue-900\">
-                                                            View
-                                                        </Link>
-                                                        <Link href={route('{$this->entityPluralLower}.edit', {$this->entityLower}.id)} className=\"text-indigo-600 hover:text-indigo-900\">
-                                                            Edit
-                                                        </Link>
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </AuthenticatedLayout>
-    );
-}";
+        // Generate Index component
+        $template = File::get(resource_path('templates/react_index.stub'));
+        $indexContent = str_replace([
+            '{{entityName}}',
+            '{{entityPlural}}',
+            '{{entityPluralLower}}',
+            '{{entityLower}}',
+            '{{entity}}'
+        ], [
+            $this->entityName,
+            $this->entityPlural,
+            $this->entityPluralLower,
+            $this->entityLower,
+            $this->entityName
+        ], $template);
 
         $indexPath = resource_path("js/Pages/{$this->entityPlural}/Index.jsx");
         File::put($indexPath, $indexContent);
         $this->info("Index component created: {$indexPath}");
+
+        // Generate columns definition file
+        $columnsTemplate = File::get(resource_path('templates/columns.stub'));
+        $columnsContent = str_replace([
+            '{{columns}}',
+            '{{entityPluralLower}}',
+            '{{entityLower}}'
+        ], [
+            $columns,
+            $this->entityPluralLower,
+            $this->entityLower
+        ], $columnsTemplate);
+
+        $columnsPath = resource_path("js/Pages/{$this->entityPlural}/columns.jsx");
+        File::put($columnsPath, $columnsContent);
+        $this->info("Columns definition created: {$columnsPath}");
     }
 
     protected function generateCreateComponent()
     {
-        $formFields = implode("\n                                ", array_map(function ($field) {
+        // Filter out reserved field names
+        $reservedFields = ['id', 'created_at', 'updated_at'];
+        $filteredFields = array_filter($this->fields, function ($field) use ($reservedFields) {
+            return !in_array($field['name'], $reservedFields);
+        });
+
+        $formFields = implode("\n", array_map(function ($field) {
             $inputType = $this->getInputType($field['type']);
-            $isTextarea = $field['type'] === 'text';
+            $isTextarea = $field['type'] === 'text' || $field['type'] === 'longtext';
             
             if ($isTextarea) {
-                return "<div className=\"mb-4\">
-                                    <label className=\"block text-gray-700 text-sm font-bold mb-2\">
-                                        {$field['name']}
-                                    </label>
-                                    <textarea
-                                        className=\"shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline\"
-                                        value={data.{$field['name']}}
-                                        onChange={(e) => setData('{$field['name']}', e.target.value)}
-                                        rows=\"3\"
-                                    />
-                                    {errors.{$field['name']} && <div className=\"text-red-500 text-xs\">{errors.{$field['name']}}</div>}
-                                </div>";
+                $rows = $field['type'] === 'longtext' ? '6' : '3';
+                $template = File::get(resource_path('templates/form_field_textarea.stub'));
+                return str_replace([
+                    '{{fieldName}}',
+                    '{{rows}}'
+                ], [
+                    $field['name'],
+                    $rows
+                ], $template);
+            } elseif (in_array($field['type'], ['file', 'video', 'image'])) {
+                $template = File::get(resource_path('templates/form_field_file.stub'));
+                $accept = match($field['type']) {
+                    'video' => 'video/*',
+                    'image' => 'image/*',
+                    default => '*'
+                };
+                return str_replace([
+                    '{{fieldName}}',
+                    '{{acceptType}}'
+                ], [
+                    $field['name'],
+                    $accept
+                ], $template);
+            } elseif ($field['type'] === 'date') {
+                $template = File::get(resource_path('templates/form_field_date.stub'));
+                return str_replace('{{fieldName}}', $field['name'], $template);
+            } elseif ($field['type'] === 'boolean') {
+                $template = File::get(resource_path('templates/form_field_switch.stub'));
+                return str_replace('{{fieldName}}', $field['name'], $template);
+            } elseif ($field['type'] === 'checkbox') {
+                $template = File::get(resource_path('templates/form_field_checkbox.stub'));
+                return str_replace('{{fieldName}}', $field['name'], $template);
             } else {
-                return "<div className=\"mb-4\">
-                                    <label className=\"block text-gray-700 text-sm font-bold mb-2\">
-                                        {$field['name']}
-                                    </label>
-                                    <input
-                                        type=\"{$inputType}\"
-                                        className=\"shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline\"
-                                        value={data.{$field['name']}}
-                                        onChange={(e) => setData('{$field['name']}', e.target.value)}
-                                    />
-                                    {errors.{$field['name']} && <div className=\"text-red-500 text-xs\">{errors.{$field['name']}}</div>}
-                                </div>";
+                $template = File::get(resource_path('templates/form_field_text.stub'));
+                return str_replace([
+                    '{{fieldName}}',
+                    '{{inputType}}'
+                ], [
+                    $field['name'],
+                    $inputType
+                ], $template);
             }
-        }, $this->fields));
+        }, $filteredFields));
 
         $formData = implode(",\n        ", array_map(function ($field) {
+            if (in_array($field['type'], ['file', 'video', 'image'])) {
+                return "{$field['name']}: null";
+            } elseif ($field['type'] === 'date') {
+                return "{$field['name']}: null";
+            } elseif ($field['type'] === 'boolean') {
+                return "{$field['name']}: false";
+            } elseif ($field['type'] === 'checkbox') {
+                return "{$field['name']}: false";
+            }
             return "{$field['name']}: ''";
-        }, $this->fields));
+        }, $filteredFields));
 
-        $createContent = "import { Head, useForm } from '@inertiajs/react';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+        // Check if we have date fields for conditional imports
+        $hasDateFields = !empty(array_filter($filteredFields, function ($field) {
+            return $field['type'] === 'date';
+        }));
 
-export default function Create({ auth, errors }) {
-    const { data, setData, post, processing } = useForm({
-        {$formData},
-    });
+        // Check if we have boolean fields for conditional imports
+        $hasBooleanFields = !empty(array_filter($filteredFields, function ($field) {
+            return $field['type'] === 'boolean';
+        }));
 
-    const submit = (e) => {
-        e.preventDefault();
-        post(route('{$this->entityPluralLower}.store'));
-    };
+        // Check if we have checkbox fields for conditional imports
+        $hasCheckboxFields = !empty(array_filter($filteredFields, function ($field) {
+            return $field['type'] === 'checkbox';
+        }));
 
-    return (
-        <AuthenticatedLayout
-            user={auth.user}
-            header={<h2 className=\"font-semibold text-xl text-gray-800 leading-tight\">Create {$this->entityName}</h2>}
-        >
-            <Head title=\"Create {$this->entityName}\" />
+        $datePickerImport = $hasDateFields ? "import DatePicker from '@/Components/ui/DatePicker';" : "";
+        $switchImport = $hasBooleanFields ? "import { Switch } from '@/Components/ui/ui/switch';" : "";
+        $checkboxImport = $hasCheckboxFields ? "import { Checkbox } from '@/Components/ui/ui/checkbox';" : "";
+        $labelImport = $hasCheckboxFields ? "import { Label } from '@/Components/ui/ui/label';" : "";
 
-            <div className=\"py-12\">
-                <div className=\"max-w-7xl mx-auto sm:px-6 lg:px-8\">
-                    <div className=\"bg-white overflow-hidden shadow-sm sm:rounded-lg\">
-                        <div className=\"p-6 text-gray-900\">
-                            <form onSubmit={submit}>
-                                {$formFields}
-
-                                <div className=\"flex items-center justify-between\">
-                                    <button
-                                        type=\"submit\"
-                                        disabled={processing}
-                                        className=\"bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline\"
-                                    >
-                                        Create {$this->entityName}
-                                    </button>
-                                </div>
-                            </form>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </AuthenticatedLayout>
-    );
-}";
+        $template = File::get(resource_path('templates/react_create.stub'));
+        $createContent = str_replace([
+            '{{entityName}}',
+            '{{entityPlural}}',
+            '{{entityPluralLower}}',
+            '{{formData}}',
+            '{{formFields}}',
+            '{{datePickerImport}}',
+            '{{switchImport}}',
+            '{{checkboxImport}}',
+            '{{labelImport}}'
+        ], [
+            $this->entityName,
+            $this->entityPlural,
+            $this->entityPluralLower,
+            $formData,
+            $formFields,
+            $datePickerImport,
+            $switchImport,
+            $checkboxImport,
+            $labelImport
+        ], $template);
 
         $createPath = resource_path("js/Pages/{$this->entityPlural}/Create.jsx");
         File::put($createPath, $createContent);
@@ -519,87 +621,118 @@ export default function Create({ auth, errors }) {
 
     protected function generateEditComponent()
     {
-        $formFields = implode("\n                                ", array_map(function ($field) {
+        // Filter out reserved field names
+        $reservedFields = ['id', 'created_at', 'updated_at'];
+        $filteredFields = array_filter($this->fields, function ($field) use ($reservedFields) {
+            return !in_array($field['name'], $reservedFields);
+        });
+
+        $formFields = implode("\n", array_map(function ($field) {
             $inputType = $this->getInputType($field['type']);
-            $isTextarea = $field['type'] === 'text';
+            $isTextarea = $field['type'] === 'text' || $field['type'] === 'longtext';
             
             if ($isTextarea) {
-                return "<div className=\"mb-4\">
-                                    <label className=\"block text-gray-700 text-sm font-bold mb-2\">
-                                        {$field['name']}
-                                    </label>
-                                    <textarea
-                                        className=\"shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline\"
-                                        value={data.{$field['name']}}
-                                        onChange={(e) => setData('{$field['name']}', e.target.value)}
-                                        rows=\"3\"
-                                    />
-                                    {errors.{$field['name']} && <div className=\"text-red-500 text-xs\">{errors.{$field['name']}}</div>}
-                                </div>";
+                $rows = $field['type'] === 'longtext' ? '6' : '3';
+                $template = File::get(resource_path('templates/form_field_textarea.stub'));
+                return str_replace([
+                    '{{fieldName}}',
+                    '{{rows}}'
+                ], [
+                    $field['name'],
+                    $rows
+                ], $template);
+            } elseif (in_array($field['type'], ['file', 'video', 'image'])) {
+                $template = File::get(resource_path('templates/form_field_file.stub'));
+                $accept = match($field['type']) {
+                    'video' => 'video/*',
+                    'image' => 'image/*',
+                    default => '*'
+                };
+                return str_replace([
+                    '{{fieldName}}',
+                    '{{acceptType}}'
+                ], [
+                    $field['name'],
+                    $accept
+                ], $template);
+            } elseif ($field['type'] === 'date') {
+                $template = File::get(resource_path('templates/form_field_date.stub'));
+                return str_replace('{{fieldName}}', $field['name'], $template);
+            } elseif ($field['type'] === 'boolean') {
+                $template = File::get(resource_path('templates/form_field_switch.stub'));
+                return str_replace('{{fieldName}}', $field['name'], $template);
+            } elseif ($field['type'] === 'checkbox') {
+                $template = File::get(resource_path('templates/form_field_checkbox.stub'));
+                return str_replace('{{fieldName}}', $field['name'], $template);
             } else {
-                return "<div className=\"mb-4\">
-                                    <label className=\"block text-gray-700 text-sm font-bold mb-2\">
-                                        {$field['name']}
-                                    </label>
-                                    <input
-                                        type=\"{$inputType}\"
-                                        className=\"shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline\"
-                                        value={data.{$field['name']}}
-                                        onChange={(e) => setData('{$field['name']}', e.target.value)}
-                                    />
-                                    {errors.{$field['name']} && <div className=\"text-red-500 text-xs\">{errors.{$field['name']}}</div>}
-                                </div>";
+                $template = File::get(resource_path('templates/form_field_text.stub'));
+                return str_replace([
+                    '{{fieldName}}',
+                    '{{inputType}}'
+                ], [
+                    $field['name'],
+                    $inputType
+                ], $template);
             }
-        }, $this->fields));
+        }, $filteredFields));
 
         $formData = implode(",\n        ", array_map(function ($field) {
+            if (in_array($field['type'], ['file', 'video', 'image'])) {
+                return "{$field['name']}: null";
+            } elseif ($field['type'] === 'date') {
+                return "{$field['name']}: {$this->entityLower}.{$field['name']} || null";
+            } elseif ($field['type'] === 'boolean') {
+                return "{$field['name']}: {$this->entityLower}.{$field['name']} || false";
+            } elseif ($field['type'] === 'checkbox') {
+                return "{$field['name']}: {$this->entityLower}.{$field['name']} || false";
+            }
             return "{$field['name']}: {$this->entityLower}.{$field['name']} || ''";
-        }, $this->fields));
+        }, $filteredFields));
 
-        $editContent = "import { Head, useForm } from '@inertiajs/react';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+        // Check if we have date fields for conditional imports
+        $hasDateFields = !empty(array_filter($filteredFields, function ($field) {
+            return $field['type'] === 'date';
+        }));
 
-export default function Edit({ auth, {$this->entityLower}, errors }) {
-    const { data, setData, put, processing } = useForm({
-        {$formData},
-    });
+        // Check if we have boolean fields for conditional imports
+        $hasBooleanFields = !empty(array_filter($filteredFields, function ($field) {
+            return $field['type'] === 'boolean';
+        }));
 
-    const submit = (e) => {
-        e.preventDefault();
-        put(route('{$this->entityPluralLower}.update', {$this->entityLower}.id));
-    };
+        // Check if we have checkbox fields for conditional imports
+        $hasCheckboxFields = !empty(array_filter($filteredFields, function ($field) {
+            return $field['type'] === 'checkbox';
+        }));
 
-    return (
-        <AuthenticatedLayout
-            user={auth.user}
-            header={<h2 className=\"font-semibold text-xl text-gray-800 leading-tight\">Edit {$this->entityName}</h2>}
-        >
-            <Head title=\"Edit {$this->entityName}\" />
+        $datePickerImport = $hasDateFields ? "import DatePicker from '@/Components/ui/DatePicker';" : "";
+        $switchImport = $hasBooleanFields ? "import { Switch } from '@/Components/ui/ui/switch';" : "";
+        $checkboxImport = $hasCheckboxFields ? "import { Checkbox } from '@/Components/ui/ui/checkbox';" : "";
+        $labelImport = $hasCheckboxFields ? "import { Label } from '@/Components/ui/ui/label';" : "";
 
-            <div className=\"py-12\">
-                <div className=\"max-w-7xl mx-auto sm:px-6 lg:px-8\">
-                    <div className=\"bg-white overflow-hidden shadow-sm sm:rounded-lg\">
-                        <div className=\"p-6 text-gray-900\">
-                            <form onSubmit={submit}>
-                                {$formFields}
-
-                                <div className=\"flex items-center justify-between\">
-                                    <button
-                                        type=\"submit\"
-                                        disabled={processing}
-                                        className=\"bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline\"
-                                    >
-                                        Update {$this->entityName}
-                                    </button>
-                                </div>
-                            </form>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </AuthenticatedLayout>
-    );
-}";
+        $template = File::get(resource_path('templates/react_edit.stub'));
+        $editContent = str_replace([
+            '{{entityName}}',
+            '{{entityPlural}}',
+            '{{entityPluralLower}}',
+            '{{entityLower}}',
+            '{{formData}}',
+            '{{formFields}}',
+            '{{datePickerImport}}',
+            '{{switchImport}}',
+            '{{checkboxImport}}',
+            '{{labelImport}}'
+        ], [
+            $this->entityName,
+            $this->entityPlural,
+            $this->entityPluralLower,
+            $this->entityLower,
+            $formData,
+            $formFields,
+            $datePickerImport,
+            $switchImport,
+            $checkboxImport,
+            $labelImport
+        ], $template);
 
         $editPath = resource_path("js/Pages/{$this->entityPlural}/Edit.jsx");
         File::put($editPath, $editContent);
@@ -608,66 +741,402 @@ export default function Edit({ auth, {$this->entityLower}, errors }) {
 
     protected function generateShowComponent()
     {
-        $showFields = implode("\n                                    ", array_map(function ($field) {
-            return "<div>
-                                        <label className=\"block text-sm font-medium text-gray-700\">{$field['name']}</label>
-                                        <p className=\"mt-1 text-sm text-gray-900\">{{$this->entityLower}.{$field['name']}}</p>
-                                    </div>";
-        }, $this->fields));
+        // Filter out reserved field names
+        $reservedFields = ['id', 'created_at', 'updated_at'];
+        $filteredFields = array_filter($this->fields, function ($field) use ($reservedFields) {
+            return !in_array($field['name'], $reservedFields);
+        });
 
-        $showContent = "import { Head, Link } from '@inertiajs/react';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+        // Check if we have video fields for conditional imports
+        $hasVideoFields = !empty(array_filter($filteredFields, function ($field) {
+            return $field['type'] === 'video';
+        }));
 
-export default function Show({ auth, {$this->entityLower} }) {
-    return (
-        <AuthenticatedLayout
-            user={auth.user}
-            header={<h2 className=\"font-semibold text-xl text-gray-800 leading-tight\">{$this->entityName} Details</h2>}
-        >
-            <Head title=\"{$this->entityName} Details\" />
+        $showFields = implode("\n", array_map(function ($field) {
+            if ($field['type'] === 'video') {
+                $template = File::get(resource_path('templates/show_field_video.stub'));
+                return str_replace([
+                    '{{fieldName}}',
+                    '{{entityLower}}',
+                    '{{entityPluralLower}}'
+                ], [
+                    $field['name'],
+                    $this->entityLower,
+                    $this->entityPluralLower
+                ], $template);
+            } elseif ($field['type'] === 'file' || $field['type'] === 'image') {
+                $template = File::get(resource_path('templates/show_field_file.stub'));
+                return str_replace([
+                    '{{fieldName}}',
+                    '{{entityLower}}',
+                    '{{entityPluralLower}}'
+                ], [
+                    $field['name'],
+                    $this->entityLower,
+                    $this->entityPluralLower
+                ], $template);
+            } elseif ($field['type'] === 'date') {
+                $template = File::get(resource_path('templates/show_field_date.stub'));
+                return str_replace([
+                    '{{fieldName}}',
+                    '{{entityLower}}'
+                ], [
+                    $field['name'],
+                    $this->entityLower
+                ], $template);
+            } elseif ($field['type'] === 'url') {
+                $template = File::get(resource_path('templates/show_field_url.stub'));
+                return str_replace([
+                    '{{fieldName}}',
+                    '{{entityLower}}'
+                ], [
+                    $field['name'],
+                    $this->entityLower
+                ], $template);
+            } else {
+                $template = File::get(resource_path('templates/show_field_text.stub'));
+                return str_replace([
+                    '{{fieldName}}',
+                    '{{entityLower}}'
+                ], [
+                    $field['name'],
+                    $this->entityLower
+                ], $template);
+            }
+        }, $filteredFields));
 
-            <div className=\"py-12\">
-                <div className=\"max-w-7xl mx-auto sm:px-6 lg:px-8\">
-                    <div className=\"bg-white overflow-hidden shadow-sm sm:rounded-lg\">
-                        <div className=\"p-6 text-gray-900\">
-                            <div className=\"mb-6\">
-                                <h3 className=\"text-lg font-semibold mb-4\">{$this->entityName} Information</h3>
-                                
-                                <div className=\"grid grid-cols-1 md:grid-cols-2 gap-4\">
-                                    {$showFields}
-                                </div>
-                            </div>
+        $videoPlayerImport = $hasVideoFields ? "import NativeVideoPlayer from '@/Components/NativeVideoPlayer';" : "";
 
-                            <div className=\"flex space-x-4\">
-                                <Link
-                                    href={route('{$this->entityPluralLower}.edit', {$this->entityLower}.id)}
-                                    className=\"bg-indigo-500 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded\"
-                                >
-                                    Edit {$this->entityName}
-                                </Link>
-                                <Link
-                                    href={route('{$this->entityPluralLower}.index')}
-                                    className=\"bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded\"
-                                >
-                                    Back to List
-                                </Link>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </AuthenticatedLayout>
-    );
-}";
+        $template = File::get(resource_path('templates/react_show.stub'));
+        $showContent = str_replace([
+            '{{entityName}}',
+            '{{entityPlural}}',
+            '{{entityPluralLower}}',
+            '{{entityLower}}',
+            '{{showFields}}',
+            '{{videoPlayerImport}}'
+        ], [
+            $this->entityName,
+            $this->entityPlural,
+            $this->entityPluralLower,
+            $this->entityLower,
+            $showFields,
+            $videoPlayerImport
+        ], $template);
 
         $showPath = resource_path("js/Pages/{$this->entityPlural}/Show.jsx");
         File::put($showPath, $showContent);
         $this->info("Show component created: {$showPath}");
     }
 
-    /**
-     * Get input type for form fields
-     */
+    protected function generateFactory()
+    {
+        // Filter out reserved field names
+        $reservedFields = ['id', 'created_at', 'updated_at'];
+        $filteredFields = array_filter($this->fields, function ($field) use ($reservedFields) {
+            return !in_array($field['name'], $reservedFields);
+        });
+
+        $factoryFields = implode(",\n            ", array_map(function ($field) {
+            $faker = $this->getFakerMethod($field['type']);
+            return "'{$field['name']}' => {$faker}";
+        }, $filteredFields));
+
+        $template = File::get(resource_path('templates/factory.stub'));
+        $content = str_replace([
+            '{{entity}}',
+            '{{factoryFields}}'
+        ], [
+            $this->entityName,
+            $factoryFields
+        ], $template);
+
+        $factoryPath = database_path("factories/{$this->entityName}Factory.php");
+        File::put($factoryPath, $content);
+        $this->info("Factory created: {$factoryPath}");
+    }
+
+    protected function generateTests()
+    {
+        $this->generateUnitTest();
+        $this->generateFeatureTest();
+    }
+
+    protected function generateUnitTest()
+    {
+        // Filter out reserved field names
+        $reservedFields = ['id', 'created_at', 'updated_at'];
+        $filteredFields = array_filter($this->fields, function ($field) use ($reservedFields) {
+            return !in_array($field['name'], $reservedFields);
+        });
+
+        // Generate test data (exclude file fields as they need actual files)
+        $nonFileFields = array_filter($filteredFields, function ($field) {
+            return !in_array($field['type'], ['file', 'video', 'image']);
+        });
+        $testData = implode(",\n            ", array_map(function ($field) {
+            $value = $this->getTestValue($field['type']);
+            return "'{$field['name']}' => {$value}";
+        }, $nonFileFields));
+
+        // Generate update data (exclude file fields as they need actual files)
+        $updateData = implode(",\n            ", array_map(function ($field) {
+            $value = $this->getTestValue($field['type'], true);
+            return "'{$field['name']}' => {$value}";
+        }, $nonFileFields));
+
+        // Generate fillable fields array
+        $fillableFields = implode(",\n            ", array_map(function ($field) {
+            return "'{$field['name']}'";
+        }, $filteredFields));
+
+        $template = File::get(resource_path('templates/unit_test.stub'));
+        $content = str_replace([
+            '{{entity}}',
+            '{{entityLower}}',
+            '{{entityPluralLower}}',
+            '{{testData}}',
+            '{{updateData}}',
+            '{{fillableFields}}'
+        ], [
+            $this->entityName,
+            $this->entityLower,
+            $this->entityPluralLower,
+            $testData,
+            $updateData,
+            $fillableFields
+        ], $template);
+
+        $unitTestPath = base_path("tests/Unit/{$this->entityName}Test.php");
+        File::put($unitTestPath, $content);
+        $this->info("Unit test created: {$unitTestPath}");
+    }
+
+    protected function generateFeatureTest()
+    {
+        // Filter out reserved field names
+        $reservedFields = ['id', 'created_at', 'updated_at'];
+        $filteredFields = array_filter($this->fields, function ($field) use ($reservedFields) {
+            return !in_array($field['name'], $reservedFields);
+        });
+
+        // Generate test data (exclude file fields as they need actual files)
+        $nonFileFields = array_filter($filteredFields, function ($field) {
+            return !in_array($field['type'], ['file', 'video', 'image']);
+        });
+        $testData = implode(",\n            ", array_map(function ($field) {
+            $value = $this->getTestValue($field['type']);
+            return "'{$field['name']}' => {$value}";
+        }, $nonFileFields));
+
+        // Generate update data (exclude file fields as they need actual files)
+        $updateData = implode(",\n            ", array_map(function ($field) {
+            $value = $this->getTestValue($field['type'], true);
+            return "'{$field['name']}' => {$value}";
+        }, $nonFileFields));
+
+        // Generate validation tests
+        $validationTests = $this->generateValidationTests($filteredFields);
+
+        $template = File::get(resource_path('templates/feature_test.stub'));
+        $content = str_replace([
+            '{{entity}}',
+            '{{entityLower}}',
+            '{{entityPluralLower}}',
+            '{{testData}}',
+            '{{updateData}}',
+            '{{validationTests}}'
+        ], [
+            $this->entityName,
+            $this->entityLower,
+            $this->entityPluralLower,
+            $testData,
+            $updateData,
+            $validationTests
+        ], $template);
+
+        $featureTestPath = base_path("tests/Feature/{$this->entityName}ControllerTest.php");
+        File::put($featureTestPath, $content);
+        $this->info("Feature test created: {$featureTestPath}");
+    }
+
+    protected function getFakerMethod($fieldType)
+    {
+        switch ($fieldType) {
+            case 'string':
+                return '$this->faker->words(3, true)';
+            case 'email':
+                return '$this->faker->safeEmail()';
+            case 'url':
+                return '$this->faker->url()';
+            case 'text':
+                return '$this->faker->paragraph()';
+            case 'longtext':
+                return '$this->faker->paragraphs(3, true)';
+            case 'integer':
+                return '$this->faker->numberBetween(1, 1000)';
+            case 'decimal':
+                return '$this->faker->randomFloat(2, 0, 9999.99)';
+            case 'boolean':
+            case 'checkbox':
+                return '$this->faker->boolean()';
+            case 'date':
+                return '$this->faker->date()';
+            case 'file':
+                return "'test-file.jpg'";
+            case 'video':
+                return "'test-video.mp4'";
+            case 'image':
+                return "'test-image.jpg'";
+            default:
+                return '$this->faker->word()';
+        }
+    }
+
+    protected function getTestValue($fieldType, $alternate = false)
+    {
+        switch ($fieldType) {
+            case 'string':
+                return $alternate ? "'Updated Test String'" : "'Test String'";
+            case 'text':
+                return $alternate ? "'Updated test paragraph.'" : "'Test paragraph.'";
+            case 'longtext':
+                return $alternate ? "'Updated long test content.'" : "'Long test content.'";
+            case 'integer':
+                return $alternate ? '200' : '100';
+            case 'decimal':
+                return $alternate ? '99.99' : '50.00';
+            case 'boolean':
+            case 'checkbox':
+                return $alternate ? 'false' : 'true';
+            case 'date':
+                return $alternate ? "'2024-12-31'" : "'2024-01-01'";
+            case 'email':
+                return $alternate ? "'updated@example.com'" : "'test@example.com'";
+            case 'url':
+                return $alternate ? "'https://updated.example.com'" : "'https://example.com'";
+            case 'file':
+                return $alternate ? "'updated-file.jpg'" : "'test-file.jpg'";
+            case 'video':
+                return $alternate ? "'updated-video.mp4'" : "'test-video.mp4'";
+            case 'image':
+                return $alternate ? "'updated-image.jpg'" : "'test-image.jpg'";
+            default:
+                return $alternate ? "'updated'" : "'test'";
+        }
+    }
+
+    protected function generateFieldValidationTest($field)
+    {
+        $rules = $this->getValidationRules($field['type']);
+        if (empty($rules)) {
+            return '';
+        }
+
+        $testName = "test_{$field['name']}_validation";
+        return "    public function {$testName}(): void
+    {
+        \$invalidData = ['{$field['name']}' => {$this->getInvalidTestValue($field['type'])}];
+        
+        \$this->expectException(\\Illuminate\\Validation\\ValidationException::class);
+        
+        {$this->entityName}::create(\$invalidData);
+    }";
+    }
+
+    protected function getValidationRules($fieldType)
+    {
+        switch ($fieldType) {
+            case 'email':
+                return ['email'];
+            case 'integer':
+                return ['integer'];
+            case 'decimal':
+                return ['numeric'];
+            case 'boolean':
+            case 'checkbox':
+                return ['boolean'];
+            case 'date':
+                return ['date'];
+            case 'url':
+                return ['url'];
+            default:
+                return [];
+        }
+    }
+
+    protected function getInvalidTestValue($fieldType)
+    {
+        switch ($fieldType) {
+            case 'email':
+                return "'invalid-email'";
+            case 'integer':
+                return "'not-an-integer'";
+            case 'decimal':
+                return "'not-a-number'";
+            case 'boolean':
+            case 'checkbox':
+                return "'not-a-boolean'";
+            case 'date':
+                return "'invalid-date'";
+            case 'url':
+                return "'not-a-url'";
+            default:
+                return "123"; // This should be invalid for string fields expecting string
+        }
+    }
+
+    protected function generateValidationTests($fields)
+    {
+        $tests = [];
+        
+        foreach ($fields as $field) {
+            $rules = $this->getValidationRules($field['type']);
+            if (!empty($rules)) {
+                $testName = "test_{$field['name']}_validation_fails_with_invalid_data";
+                $invalidValue = $this->getInvalidTestValue($field['type']);
+                
+                $tests[] = "    public function {$testName}(): void
+    {
+        \$invalidData = ['{$field['name']}' => {$invalidValue}];
+
+        \$response = \$this
+            ->actingAs(\$this->user)
+            ->post(route('{$this->entityPluralLower}.store'), \$invalidData);
+
+        \$response->assertSessionHasErrors('{$field['name']}');
+    }";
+            }
+        }
+        
+        return implode("\n\n", $tests);
+    }
+
+    protected function shouldFieldBeRequired($field)
+    {
+        // Fields that should typically be required
+        $typicallyRequired = ['string', 'integer', 'decimal', 'email'];
+        
+        // Fields that are usually optional
+        $typicallyOptional = ['text', 'longtext', 'file', 'url', 'date'];
+        
+        // Boolean/checkbox fields are never required (they have default values)
+        if (in_array($field['type'], ['boolean', 'checkbox'])) {
+            return false;
+        }
+        
+        // Check if field name suggests it should be required
+        $requiredKeywords = ['name', 'title', 'email', 'price', 'amount', 'quantity'];
+        foreach ($requiredKeywords as $keyword) {
+            if (str_contains(strtolower($field['name']), $keyword)) {
+                return true;
+            }
+        }
+        
+        // Default based on type
+        return in_array($field['type'], $typicallyRequired);
+    }
+
     protected function getInputType($fieldType)
     {
         switch ($fieldType) {
@@ -676,32 +1145,27 @@ export default function Show({ auth, {$this->entityLower} }) {
             case 'integer':
             case 'decimal':
                 return 'number';
-            case 'date':
-                return 'date';
+            case 'url':
+                return 'url';
             case 'boolean':
+                return 'checkbox';
+            case 'checkbox':
                 return 'checkbox';
             default:
                 return 'text';
         }
     }
 
-    /**
-     * Add web routes to routes/web.php
-     */
     protected function addWebRoutes()
     {
-        $routesFile = base_path('routes/web.php');
-        
-        // Read the file
-        $content = File::get($routesFile);
-        
-        // Add the use statement at the top
+        $routesPath = base_path('routes/web.php');
+        $routes = File::get($routesPath);
+
+        // Add use statement if it doesn't exist
         $useStatement = "use App\\Http\\Controllers\\{$this->entityName}Controller;";
-        
-        // Check if the use statement already exists
-        if (!str_contains($content, $useStatement)) {
+        if (!str_contains($routes, $useStatement)) {
             // Find the last use statement and add after it
-            $lines = explode("\n", $content);
+            $lines = explode("\n", $routes);
             $newLines = [];
             $useAdded = false;
             
@@ -714,119 +1178,92 @@ export default function Show({ auth, {$this->entityLower} }) {
                 }
             }
             
-            $content = implode("\n", $newLines);
+            $routes = implode("\n", $newLines);
         }
-        
-        // Add the route inside the auth middleware group
-        $routeContent = "\n        // {$this->entityName} routes\n        Route::resource('{$this->entityPluralLower}', {$this->entityName}Controller::class);\n";
-        
-        // Find the auth middleware group and add the route
-        $pattern = '/(Route::middleware\(\'auth\'\)->group\(function \(\) \{)(.*?)(\}\);)/s';
-        $replacement = '$1$2' . $routeContent . '$3';
-        
-        $newContent = preg_replace($pattern, $replacement, $content);
-        
-        File::put($routesFile, $newContent);
-        
-        $this->info("Routes added to routes/web.php");
+
+        $newRoutes = "
+    Route::resource('{$this->entityPluralLower}', {$this->entityName}Controller::class)->parameters(['{$this->entityPluralLower}' => '{$this->entityLower}']);";
+
+        if (!str_contains($routes, $newRoutes)) {
+            // Find the auth middleware group and add the route inside it
+            $pattern = '/(Route::middleware\(\'auth\'\)->group\(function \(\) \{)(.*?)(\}\);)/s';
+            $replacement = '$1$2' . $newRoutes . '$3';
+            
+            $newContent = preg_replace($pattern, $replacement, $routes);
+            
+            if ($newContent !== $routes) {
+                File::put($routesPath, $newContent);
+                $this->info("Routes added to web.php");
+            } else {
+                // Fallback: add at the end
+                $routes .= $newRoutes;
+                File::put($routesPath, $routes);
+                $this->info("Routes added to web.php (fallback)");
+            }
+        }
     }
 
-    /**
-     * Update navigation in AuthenticatedLayout
-     */
     protected function updateNavigation()
     {
-        $layoutFile = resource_path('js/Layouts/AuthenticatedLayout.jsx');
-        
-        if (!File::exists($layoutFile)) {
-            $this->warn("AuthenticatedLayout.jsx not found, skipping navigation update");
-            return;
-        }
-
-        $content = File::get($layoutFile);
-        
-        // Check if navigation link already exists
-        $navLinkText = "route('{$this->entityPluralLower}.index')";
-        if (str_contains($content, $navLinkText)) {
-            $this->info("Navigation link already exists for {$this->entityName}");
-            return;
-        }
-        
-        // Add navigation link
-        $navLink = "                                <NavLink\n                                    href={route('{$this->entityPluralLower}.index')}\n                                    active={route().current('{$this->entityPluralLower}.*')}\n                                >\n                                    {$this->entityName}\n                                </NavLink>\n";
-        
-        // Find the navigation section and add the link before the closing div
-        // Try to find the navigation section and insert the link
-        $lines = explode("\n", $content);
-        $newLines = [];
-        $navSectionFound = false;
-        $navLinkAdded = false;
-        
-        foreach ($lines as $line) {
-            $newLines[] = $line;
+        $sidebarPath = resource_path('js/Components/AppSidebar.jsx');
+        if (File::exists($sidebarPath)) {
+            $sidebar = File::get($sidebarPath);
             
-            // Look for the navigation section opening
-            if (str_contains($line, 'className="hidden space-x-8 sm:-my-px sm:ml-10 sm:flex"') || 
-                str_contains($line, 'className="hidden space-x-8 sm:-my-px sm:ms-10 sm:flex"')) {
-                $navSectionFound = true;
-            }
+            // Check if navigation item already exists
+            $sidebarItem = "              <SidebarMenuItem>
+                <SidebarMenuButton asChild>
+                  <Link href={route('{$this->entityPluralLower}.index')} className=\"flex items-center gap-2\">
+                    <FolderOpen className=\"h-4 w-4\" />
+                    {$this->entityPlural}
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>";
             
-            // If we're in the navigation section and find the closing div, add our link before it
-            if ($navSectionFound && str_contains($line, '</div>') && !$navLinkAdded) {
-                // Check if there are any NavLink elements before this closing div
-                $hasNavLinks = false;
-                foreach (array_slice($newLines, -10) as $prevLine) {
-                    if (str_contains($prevLine, 'NavLink')) {
-                        $hasNavLinks = true;
-                        break;
-                    }
+            if (!str_contains($sidebar, $sidebarItem)) {
+                // Check if Management section exists
+                if (str_contains($sidebar, '<SidebarGroupLabel>Management</SidebarGroupLabel>')) {
+                    // Management section exists, add to it
+                    // Find the Management section and insert before the closing SidebarMenu tag
+                    $pattern = '/(<SidebarGroupLabel>Management<\/SidebarGroupLabel>\s*<SidebarGroupContent>\s*<SidebarMenu>)(.*?)(<\/SidebarMenu>\s*<\/SidebarGroupContent>\s*<\/SidebarGroup>)/s';
+                    $replacement = '$1$2' . $sidebarItem . '$3';
+                    $sidebar = preg_replace($pattern, $replacement, $sidebar);
+                } else {
+                    // Management section doesn't exist, create it
+                    $managementSection = "
+        <SidebarGroup>
+          <SidebarGroupLabel>Management</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+{$sidebarItem}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>";
+                    
+                    // Find the position after the Main section and before the Separator
+                    $pattern = '/(<SidebarGroup>\s*<SidebarGroupLabel>Main<\/SidebarGroupLabel>.*?<\/SidebarGroup>\s*)\n\s*<Separator/s';
+                    $replacement = '$1' . $managementSection . "\n        <Separator";
+                    $sidebar = preg_replace($pattern, $replacement, $sidebar);
                 }
                 
-                if ($hasNavLinks) {
-                    // Insert our navigation link before the closing div
-                    array_pop($newLines); // Remove the closing div
-                    $newLines[] = $navLink;
-                    $newLines[] = $line; // Add back the closing div
-                    $navLinkAdded = true;
-                }
+                File::put($sidebarPath, $sidebar);
+                $this->info("Sidebar navigation updated");
             }
-        }
-        
-        if ($navLinkAdded) {
-            $newContent = implode("\n", $newLines);
-            File::put($layoutFile, $newContent);
-            $this->info("Navigation updated in AuthenticatedLayout.jsx");
-        } else {
-            $this->warn("Could not find navigation section in AuthenticatedLayout.jsx");
-            $this->info("Please manually add the navigation link:");
-            $this->info($navLink);
         }
     }
 
-    /**
-     * Ask for fields using a select menu.
-     *
-     * @param array $availableFieldTypes
-     * @return string
-     */
-    protected function askWithMenu(array $availableFieldTypes)
+    protected function askWithMenu(array $options, $question)
     {
-        $this->info('Define the fields for your entity (e.g., name:string,price:decimal)');
-        $fields = [];
-
-        while (true) {
-            $fieldName = $this->ask('Enter the field name (or press Enter to finish):');
-            if (empty($fieldName)) {
-                break;
-            }
-
-            $fieldType = $this->choice('Select the field type:', $availableFieldTypes, 0);
-
-            $isRequired = $this->confirm('Is this field required?', false);
-
-            $fields[] = "{$fieldName}:{$fieldType}" . ($isRequired ? '|required' : '');
+        $this->info($question);
+        foreach ($options as $index => $option) {
+            $this->line(($index + 1) . ". {$option}");
         }
 
-        return implode(',', $fields);
+        while (true) {
+            $choice = $this->ask('Select option (1-' . count($options) . ')');
+            if (is_numeric($choice) && $choice >= 1 && $choice <= count($options)) {
+                return $options[$choice - 1];
+            }
+            $this->error('Invalid choice. Please try again.');
+        }
     }
 } 

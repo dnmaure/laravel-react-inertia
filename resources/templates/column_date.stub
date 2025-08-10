@@ -1,0 +1,11 @@
+  {
+    accessorKey: "{{fieldName}}",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="{{fieldName}}" />
+    ),
+    cell: ({ row }) => {
+      const date = row.getValue("{{fieldName}}")
+      if (!date) return <div>-</div>
+      return <div>{new Date(date).toLocaleDateString()}</div>
+    },
+  }, 

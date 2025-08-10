@@ -1,0 +1,7 @@
+  {
+    accessorKey: "{{fieldName}}",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="{{fieldName}}" />
+    ),
+    cell: ({ row }) => <div>{row.getValue("{{fieldName}}")}</div>,
+  }, 

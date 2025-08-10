@@ -1,0 +1,12 @@
+                                <div className="mb-4">
+                                    <FileUploadWithProgress
+                                        name="{{fieldName}}"
+                                        label="{{fieldName}}"
+                                        value={data.{{fieldName}}}
+                                        onChange={(file) => setData('{{fieldName}}', file)}
+                                        accept="{{acceptType}}"
+                                        maxSize={102400}
+                                        showPreview={true}
+                                    />
+                                    {errors.{{fieldName}} && <div className="text-red-500 text-xs">{errors.{{fieldName}}}</div>}
+                                </div> 

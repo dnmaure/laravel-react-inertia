@@ -1,0 +1,13 @@
+                                <div className="mb-4">
+                                    <div className="flex items-center space-x-2">
+                                        <Checkbox
+                                            id="{{fieldName}}"
+                                            checked={data.{{fieldName}}}
+                                            onCheckedChange={(checked) => setData('{{fieldName}}', checked)}
+                                        />
+                                        <Label htmlFor="{{fieldName}}" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                                            {{fieldName}}
+                                        </Label>
+                                    </div>
+                                    {errors.{{fieldName}} && <div className="text-red-500 text-xs mt-1">{errors.{{fieldName}}}</div>}
+                                </div> 

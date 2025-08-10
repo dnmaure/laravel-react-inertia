@@ -1,250 +1,206 @@
 # Laravel React CRUD Generator
 
-This artisan command generates complete CRUD (Create, Read, Update, Delete) operations for Laravel React applications using Inertia.js.
+A powerful Laravel console command that generates complete CRUD (Create, Read, Update, Delete) functionality with React components using Inertia.js.
 
 ## Features
 
-- ✅ **Model Generation**: Creates Eloquent models with proper fillable fields
-- ✅ **Migration Generation**: Creates database migrations with proper field types
-- ✅ **Controller Generation**: Creates resource controllers with validation
-- ✅ **React Components**: Generates Index, Create, Edit, and Show components
-- ✅ **Route Registration**: Automatically adds resource routes to `routes/web.php`
-- ✅ **Navigation Updates**: Adds navigation links to `AuthenticatedLayout.jsx`
-- ✅ **Field Type Support**: Supports various field types (string, integer, decimal, boolean, date, text, email)
-- ✅ **Validation**: Generates proper Laravel validation rules
-- ✅ **Form Handling**: Creates forms with proper Inertia.js integration
+- ✅ **Complete CRUD Generation**: Model, Migration, Controller, and React Components
+- ✅ **Advanced Field Types**: string, integer, decimal, boolean, date, text, longtext, email, file, url
+- ✅ **File Upload Support**: Automatic file handling with storage to public disk
+- ✅ **Date Picker Components**: shadcn/ui DatePicker integration for date fields
+- ✅ **Template-Based Generation**: Clean, maintainable templates for all generated code
+- ✅ **Automatic Navigation**: Adds menu items to AuthenticatedLayout
+- ✅ **Smart Migration**: Only runs if table doesn't exist
+- ✅ **Form Validation**: Automatic validation rules based on field types
+- ✅ **Responsive Design**: Tailwind CSS styling with modern UI
+
+## Installation
+
+1. Ensure you have the required dependencies:
+   ```bash
+   # shadcn/ui components
+   npm install date-fns lucide-react clsx tailwind-merge
+   
+   # Create storage link for file uploads
+   php artisan storage:link
+   ```
+
+2. The command is already available in your Laravel application.
 
 ## Usage
 
-### Basic Usage
-
+### Interactive Mode
 ```bash
-# Generate CRUD with interactive field definition
 php artisan create:crud Product
-
-# Generate CRUD with predefined fields
-php artisan create:crud Product --fields="name:string,price:decimal,stock:integer"
 ```
 
-### Field Types Supported
+The command will prompt you to:
+1. Enter field names
+2. Select field types from a menu
+3. Continue until you're done (press Enter to finish)
 
-- `string` - VARCHAR(255) field
-- `integer` - INTEGER field
-- `decimal` - DECIMAL(10,2) field
-- `boolean` - BOOLEAN field with default false
-- `date` - DATE field
-- `text` - TEXT field (nullable)
-- `email` - VARCHAR field with email validation
+### Command Line Mode
+```bash
+php artisan create:crud Product --fields="name:string,price:decimal,description:text,image:file,created_at:date"
+```
 
-### Field Options
+## Supported Field Types
 
-- Add `|required` to make a field required: `name:string|required`
-- Fields are nullable by default unless specified as required
+| Type | Description | Database Column | Form Input |
+|------|-------------|----------------|------------|
+| `string` | Short text | `VARCHAR(255)` | Text input |
+| `integer` | Whole numbers | `INT` | Number input |
+| `decimal` | Decimal numbers | `DECIMAL(10,2)` | Number input |
+| `boolean` | True/False | `BOOLEAN` | Checkbox |
+| `date` | Date only | `DATE` | DatePicker component |
+| `text` | Long text | `TEXT` | Textarea (3 rows) |
+| `longtext` | Very long text | `LONGTEXT` | Textarea (6 rows) |
+| `email` | Email address | `VARCHAR(255)` | Email input |
+| `file` | File upload | `VARCHAR(255)` | File input |
+| `url` | URL/Website | `VARCHAR(255)` | URL input |
+
+## Generated Files
+
+The command creates the following files:
+
+### Backend (Laravel)
+- `app/Models/{Entity}.php` - Eloquent model with fillable fields and date casting
+- `app/Http/Controllers/{Entity}Controller.php` - Full CRUD controller with validation
+- `database/migrations/{timestamp}_create_{entities}_table.php` - Database migration
+- `routes/web.php` - Resource routes (automatically added)
+
+### Frontend (React)
+- `resources/js/Pages/{Entities}/Index.jsx` - List view with table
+- `resources/js/Pages/{Entities}/Create.jsx` - Create form
+- `resources/js/Pages/{Entities}/Edit.jsx` - Edit form
+- `resources/js/Pages/{Entities}/Show.jsx` - Detail view
+- `resources/js/Layouts/AuthenticatedLayout.jsx` - Navigation menu (updated)
+
+## Template System
+
+The generator uses a clean template system located in `resources/templates/`:
+
+- `model.stub` - Eloquent model template
+- `controller.stub` - Laravel controller template
+- `migration.stub` - Database migration template
+- `react_index.stub` - React index component template
+- `react_create.stub` - React create component template
+- `react_edit.stub` - React edit component template
+- `react_show.stub` - React show component template
+
+### Template Placeholders
+
+Templates use simple placeholder replacement:
+- `{{entity}}` - Entity name (singular, PascalCase)
+- `{{entityLower}}` - Entity name (singular, camelCase)
+- `{{entityPlural}}` - Entity name (plural, PascalCase)
+- `{{entityPluralLower}}` - Entity name (plural, kebab-case)
+- `{{fields}}` - Field definitions
+- `{{fieldsValidation}}` - Validation rules
+- `{{fieldsFillable}}` - Fillable fields
+- `{{migrationFields}}` - Migration field definitions
+- `{{fileUploadCode}}` - File upload handling code
+- `{{dateFormatCode}}` - Date formatting code
+- `{{dateCasts}}` - Date casting definitions
+
+## Date Picker Component
+
+The generator automatically integrates the shadcn/ui DatePicker component for `date` fields:
+
+### Features
+- Modern calendar interface
+- Date formatting with `date-fns`
+- Error handling integration
+- Responsive design
+
+### Dependencies
+- `date-fns` - Date utility library
+- `lucide-react` - Icon library
+- `clsx` and `tailwind-merge` - Class name utilities
+
+### Usage in Templates
+```jsx
+import DatePicker from '@/Components/ui/DatePicker';
+
+<DatePicker
+    value={data.fieldName}
+    onChange={(date) => setData('fieldName', date)}
+    placeholder="Select field name"
+    error={errors.fieldName}
+/>
+```
+
+## File Upload Features
+
+### Storage
+- Files are stored in `storage/app/public/{entityPlural}/`
+- Automatic file naming with timestamps
+- Public disk configuration
+
+### Display
+- Images are displayed inline with thumbnails
+- Non-image files show download links
+- Responsive image sizing
+
+### Validation
+- Automatic file validation rules
+- Support for various file types
+- Configurable file size limits
 
 ## Examples
 
-### Example 1: Simple Product CRUD
-
+### Create a Product CRUD
 ```bash
-php artisan create:crud Product --fields="name:string|required,price:decimal|required,stock:integer"
+php artisan create:crud Product --fields="name:string,price:decimal,description:text,image:file,is_active:boolean"
 ```
 
-This creates:
-- Model: `app/Models/Product.php`
-- Migration: `database/migrations/xxxx_create_products_table.php`
-- Controller: `app/Http/Controllers/ProductController.php`
-- React Components: `resources/js/Pages/Products/Index.jsx`, `Create.jsx`, `Edit.jsx`, `Show.jsx`
-- Routes: `Route::resource('products', ProductController::class);`
-- Navigation: Adds "Products" link to navigation
-
-### Example 2: Category CRUD
-
+### Create an Event CRUD
 ```bash
-php artisan create:crud Category --fields="name:string|required,description:text"
+php artisan create:crud Event --fields="title:string,start_date:date,end_date:date,description:longtext,website:url"
 ```
 
-### Example 3: User Profile CRUD
-
+### Create a User Profile CRUD
 ```bash
-php artisan create:crud Profile --fields="first_name:string|required,last_name:string|required,email:email|required,birth_date:date,is_active:boolean"
+php artisan create:crud Profile --fields="bio:text,avatar:file,birth_date:date,phone:string,website:url"
 ```
-
-## Generated Files Structure
-
-```
-app/
-├── Models/
-│   └── {Entity}.php
-├── Http/Controllers/
-│   └── {Entity}Controller.php
-└── Console/Commands/
-    └── CreateCrud.php
-
-database/migrations/
-└── xxxx_create_{entities}_table.php
-
-resources/js/Pages/
-└── {Entities}/
-    ├── Index.jsx
-    ├── Create.jsx
-    ├── Edit.jsx
-    └── Show.jsx
-
-routes/
-└── web.php (updated with new routes)
-
-resources/js/Layouts/
-└── AuthenticatedLayout.jsx (updated with navigation)
-```
-
-## Generated Features
-
-### Model
-- Proper namespace and inheritance
-- Fillable fields based on defined fields
-- Ready for relationships and additional methods
-
-### Migration
-- Proper table structure
-- Field types mapped to Laravel migration methods
-- Timestamps included
-- Proper rollback method
-
-### Controller
-- Full resource controller with all CRUD methods
-- Proper validation rules for each field
-- Inertia.js integration
-- Success messages and redirects
-- Route model binding
-
-### React Components
-
-#### Index Component
-- Table display of all records
-- Pagination support
-- Links to Create, Show, and Edit
-- Responsive design with Tailwind CSS
-
-#### Create Component
-- Form with all defined fields
-- Proper input types (text, number, email, date, textarea)
-- Validation error display
-- Inertia.js form handling
-
-#### Edit Component
-- Pre-populated form with existing data
-- Same features as Create component
-- Update method integration
-
-#### Show Component
-- Display all fields in a clean layout
-- Links to Edit and back to Index
-- Responsive grid layout
-
-## Post-Generation Steps
-
-After running the command:
-
-1. **Build Assets** (if not done automatically):
-   ```bash
-   docker-compose exec node npm run build
-   ```
-
-2. **Run Migrations** (if not done automatically):
-   ```bash
-   php artisan migrate
-   ```
-
-3. **Test the CRUD**:
-   - Access the application
-   - Login to your account
-   - Navigate to the new entity via the navigation menu
-   - Test all CRUD operations
 
 ## Customization
 
-### Adding Relationships
+### Modifying Templates
+Edit the template files in `resources/templates/` to customize the generated code:
+- Add new field types
+- Modify styling
+- Change component structure
+- Add custom validation rules
 
-After generation, you can add relationships to the model:
-
-```php
-// In app/Models/Product.php
-public function category()
-{
-    return $this->belongsTo(Category::class);
-}
-```
-
-### Adding Custom Validation
-
-Modify the controller to add custom validation rules:
-
-```php
-// In app/Http/Controllers/ProductController.php
-public function store(Request $request)
-{
-    $request->validate([
-        'name' => 'required|string|max:255|unique:products',
-        'price' => 'required|numeric|min:0',
-        'stock' => 'required|integer|min:0',
-    ]);
-    // ... rest of the method
-}
-```
-
-### Styling Customization
-
-The React components use Tailwind CSS classes. You can customize the styling by modifying the className attributes in the generated components.
+### Adding New Field Types
+1. Add the field type to `$availableFieldTypes` in the command
+2. Update the migration template to handle the new type
+3. Update React templates to render appropriate inputs
+4. Add validation rules in the controller template
 
 ## Troubleshooting
 
-### Migration Errors
-If you get "table already exists" errors:
-```bash
-php artisan tinker --execute="DB::table('migrations')->insert(['migration' => 'migration_name', 'batch' => 1]);"
-```
+### Common Issues
+1. **Storage Link**: Ensure `php artisan storage:link` is run
+2. **File Permissions**: Check storage directory permissions
+3. **Template Errors**: Verify template syntax and placeholders
+4. **Migration Errors**: Check if table already exists
 
-### Build Errors
-If you get build errors:
-```bash
-docker-compose exec node npm run build
-```
-
-### JavaScript Errors
-If you get `ReferenceError: $entity is not defined`:
-- This is a template generation issue that has been fixed in the latest version
-- Rebuild assets: `docker-compose exec node npm run build`
-- If the error persists, check the generated React components for incorrect `$` symbols in JSX
-
-### Duplicate Controller Imports
-If you see duplicate `use App\Http\Controllers\` statements in `routes/web.php`:
-- This issue has been fixed in the latest version
-- The generator now properly checks for existing imports before adding new ones
-- Clean up any existing duplicates manually if needed
-
-### Missing Navigation Links
-If navigation links are not appearing in the navbar:
-- The generator now uses a robust line-by-line parsing approach to find the navigation section
-- It automatically detects existing NavLink elements and adds new ones in the correct location
-- The generator checks for existing navigation links before adding new ones to prevent duplicates
-- Rebuild assets after generation: `docker-compose exec node npm run build`
-- If automatic navigation update fails, the generator will provide the manual navigation link code
-
-### Route Errors
-If routes don't work, check:
-- Routes are properly added to `routes/web.php`
-- Controller namespace is correct
-- Migration has been run
+### Debugging
+- Check generated files for syntax errors
+- Verify template placeholder replacements
+- Review Laravel logs for errors
+- Test individual components
 
 ## Contributing
 
-To extend the CRUD generator:
-
-1. Modify `app/Console/Commands/CreateCrud.php`
-2. Add new field types in the `getInputType()` method
-3. Add new validation rules in the controller generation
-4. Update React component templates as needed
+To improve the generator:
+1. Update templates in `resources/templates/`
+2. Modify the `CreateCrud` command logic
+3. Add new field types and validation rules
+4. Enhance React component functionality
 
 ## License
 
-This CRUD generator is part of your Laravel React application and follows the same license as your project. 
+This CRUD generator is part of the Laravel React application and follows the same license terms. 

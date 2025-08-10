@@ -1,0 +1,20 @@
+  {
+    accessorKey: "{{fieldName}}",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="{{fieldName}}" />
+    ),
+    cell: ({ row }) => {
+      const url = row.getValue("{{fieldName}}")
+      if (!url) return <div>-</div>
+      return (
+        <a 
+          href={url} 
+          target="_blank" 
+          rel="noopener noreferrer"
+          className="text-blue-600 hover:text-blue-800 underline"
+        >
+          {url}
+        </a>
+      )
+    },
+  }, 

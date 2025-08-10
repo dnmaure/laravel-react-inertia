@@ -1,0 +1,70 @@
+"use client"
+
+
+import { ArrowUpDown, MoreHorizontal } from "lucide-react"
+import { Link, router } from "@inertiajs/react"
+import { showToast } from "@/lib/toast"
+
+import { Button } from "@/Components/ui/ui/button"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/Components/ui/ui/dropdown-menu"
+import { DataTableColumnHeader } from "@/Components/ui/data-table-column-header"
+
+export const columns = [
+{{columns}}
+  {
+    id: "actions",
+    enableHiding: false,
+    cell: ({ row }) => {
+      const {{entityLower}} = row.original
+
+      return (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" className="h-8 w-8 p-0">
+              <span className="sr-only">Open menu</span>
+              <MoreHorizontal className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuLabel>Actions</DropdownMenuLabel>
+            <DropdownMenuItem>
+              <Link href={route('{{entityPluralLower}}.show', {{entityLower}}.id)}>
+                View details
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem>
+              <Link href={route('{{entityPluralLower}}.edit', {{entityLower}}.id)}>
+                Edit
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onClick={() => {
+                if (confirm('Are you sure you want to delete this {{entityLower}}?')) {
+                  router.delete(route('{{entityPluralLower}}.destroy', {{entityLower}}.id), {
+                    onSuccess: () => {
+                      showToast.success('{{entityName}} deleted successfully!');
+                    },
+                    onError: () => {
+                      showToast.error('Failed to delete {{entityName}}. Please try again.');
+                    },
+                  });
+                }
+              }}
+              className="text-red-600"
+            >
+              Delete
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )
+    },
+  },
+] 

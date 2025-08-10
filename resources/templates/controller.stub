@@ -10,10 +10,10 @@ class {{entity}}Controller extends Controller
 {
     public function index()
     {
-        ${{entityPlural}} = {{entity}}::latest()->paginate(10);
+        ${{entityPluralLower}} = {{entity}}::latest()->paginate(10);
         
         return Inertia::render('{{entityPlural}}/Index', [
-            '{{entityPlural}}' => ${{entityPlural}},
+            '{{entityPluralLower}}' => ${{entityPluralLower}},
         ]);
     }
 
@@ -28,9 +28,11 @@ class {{entity}}Controller extends Controller
             {{fieldsValidation}},
         ]);
 
-        {{entity}}::create($request->all());
+        $data = $request->all();{{fileUploadCode}}{{dateFormatCode}}
 
-        return redirect()->route('{{entityPlural}}.index')
+        {{entity}}::create($data);
+
+        return redirect()->route('{{entityPluralLower}}.index')
             ->with('success', '{{entity}} created successfully.');
     }
 
@@ -51,12 +53,14 @@ class {{entity}}Controller extends Controller
     public function update(Request $request, {{entity}} ${{entityLower}})
     {
         $request->validate([
-            {{fieldsValidation}},
+            {{updateFieldsValidation}},
         ]);
 
-        ${{entityLower}}->update($request->all());
+        $data = $request->except([{{fileFieldsList}}]); // Exclude file fields from bulk assignment{{fileUploadCode}}{{dateFormatCode}}
 
-        return redirect()->route('{{entityPlural}}.index')
+        ${{entityLower}}->update($data);
+
+        return redirect()->route('{{entityPluralLower}}.index')
             ->with('success', '{{entity}} updated successfully.');
     }
 
@@ -64,7 +68,7 @@ class {{entity}}Controller extends Controller
     {
         ${{entityLower}}->delete();
 
-        return redirect()->route('{{entityPlural}}.index')
+        return redirect()->route('{{entityPluralLower}}.index')
             ->with('success', '{{entity}} deleted successfully.');
     }
 }

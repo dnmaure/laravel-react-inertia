@@ -1,0 +1,29 @@
+                                <div className="mb-4">
+                                    <label className="block text-gray-700 text-sm font-bold mb-2">
+                                        {{fieldName}}
+                                    </label>
+                                    
+                                    {/* Current image preview */}
+                                    {{{entityLower}}.{{fieldName}} && (
+                                        <div className="mb-3 p-3 bg-gray-50 rounded-lg border">
+                                            <p className="text-sm text-gray-600 mb-2">Current image:</p>
+                                            <img 
+                                                src={`/storage/{{entityPluralLower}}/${{{entityLower}}.{{fieldName}}}`}
+                                                alt="Current {{fieldName}}"
+                                                className="w-16 h-16 object-cover rounded border"
+                                            />
+                                            <p className="text-xs text-gray-500 mt-1">{{entityLower}}.{{fieldName}}</p>
+                                        </div>
+                                    )}
+                                    
+                                    <FileUploadWithProgress
+                                        name="{{fieldName}}"
+                                        label="Upload new image (optional)"
+                                        value={data.{{fieldName}}}
+                                        onChange={(file) => setData('{{fieldName}}', file)}
+                                        accept="image/*"
+                                        maxSize={102400}
+                                        showPreview={true}
+                                    />
+                                    {errors.{{fieldName}} && <div className="text-red-500 text-xs">{errors.{{fieldName}}}</div>}
+                                </div>

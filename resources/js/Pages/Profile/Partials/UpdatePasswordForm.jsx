@@ -5,6 +5,7 @@ import TextInput from '@/Components/TextInput';
 import { Transition } from '@headlessui/react';
 import { useForm } from '@inertiajs/react';
 import { useRef } from 'react';
+import { showToast } from '@/lib/toast';
 
 export default function UpdatePasswordForm({ className = '' }) {
     const passwordInput = useRef();
@@ -29,8 +30,12 @@ export default function UpdatePasswordForm({ className = '' }) {
 
         put(route('password.update'), {
             preserveScroll: true,
-            onSuccess: () => reset(),
+            onSuccess: () => {
+                reset();
+                showToast.success('Password updated successfully!');
+            },
             onError: (errors) => {
+                showToast.error('Failed to update password. Please check your current password and try again.');
                 if (errors.password) {
                     reset('password', 'password_confirmation');
                     passwordInput.current.focus();

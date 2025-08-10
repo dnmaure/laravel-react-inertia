@@ -1,0 +1,10 @@
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700">{{fieldName}}</label>
+                            <p className="mt-1 text-sm text-gray-900">
+                                {{{entityLower}}.{{fieldName}} ? (
+                                    <a href={{{entityLower}}.{{fieldName}}} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 underline">
+                                        {{{entityLower}}.{{fieldName}}}
+                                    </a>
+                                ) : 'Not set'}
+                            </p>
+                        </div> 
